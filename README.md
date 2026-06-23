@@ -2,14 +2,12 @@
 
 **A Claude Code skill for generating and reviewing Autodesk Fusion Electronics / EAGLE 9.x PCB designs.**
 
-`eagle-pcb-studio` turns an AI coding agent into a PCB design assistant for **EAGLE `.sch` / `.brd` / `.lbr`** files and **Fusion-exported Gerbers**. EAGLE/Fusion store designs as XML (with a `<!DOCTYPE eagle ...>`) and export Gerbers with their own layer-naming convention, so the scripts parse that format natively.
+`eagle-pcb-studio` gives an AI coding agent a focused toolset for EAGLE / Fusion Electronics projects — `.sch` schematics, `.brd` boards, `.lbr` libraries, and exported Gerber/drill sets. It does two things:
 
-It does two things:
+- **Generate** a placed board from a schematic — read an existing `.sch`, optimize component placement (wire length + area), and emit an unrouted `.brd` ready to route.
+- **Review** an existing design and its Gerbers before manufacturing — schematic ERC, board DFM, solder-mask dams, drills, plane pours, trace sizing, schematic↔board consistency, and a fab-ready BOM.
 
-- **Generate** a placed board from a schematic — read an existing `.sch`, optimize component placement (wire length + area), and emit an unrouted `.brd`.
-- **Review** an existing design and its Gerbers for manufacturing — DFM, solder-mask dams, drills, plane pours, trace sizing, schematic↔board consistency, and a fab-ready BOM.
-
-All analysis scripts are self-contained and **dependency-free** (Python 3.8+ standard library; `openpyxl` only for the BOM script), so they also run standalone outside Claude.
+Every script is self-contained and dependency-free (Python 3.8+ standard library; `openpyxl` only for the BOM), so they run inside Claude or standalone from the command line.
 
 ## Capabilities
 
