@@ -44,6 +44,21 @@
         "J1 and J2 are placed on a board edge (constraint honored).",
         "Produces a valid SVG preview (parses, contains the board outline + parts)."
       ]
+    },
+    {
+      "id": 3,
+      "name": "sch-to-board",
+      "prompt": "I have an EAGLE/Fusion schematic but no board yet, at <SCH>. Generate a placed board (.brd) from it \u2014 auto-place all the components to minimize board area and keep wire lengths short \u2014 and give me an SVG preview of the placement. The board should be ready to open in Fusion and start routing.",
+      "files": [
+        "fixtures/design.sch"
+      ],
+      "assertions": [
+        "Produces a valid EAGLE .brd that parses and retains the <!DOCTYPE eagle> declaration.",
+        "Every schematic part is placed as an <element> with no overlapping footprints, all within the board outline.",
+        "Every schematic net appears as a <signal> with the correct contactrefs (unrouted ratsnest).",
+        "The board's libraries match the schematic (footprints consistent / check_consistency PASS).",
+        "Produces an SVG preview of the placement."
+      ]
     }
   ]
 }
