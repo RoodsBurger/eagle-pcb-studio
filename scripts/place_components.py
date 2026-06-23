@@ -34,6 +34,11 @@ SPEC schema (JSON):
     { "name": "U1", "w": 7.0, "h": 7.0,        # bbox size (mm), local R0 frame
       "group": "U1",                            # optional cluster id (anchor name)
       "fixed_edge": "bottom",                   # optional: bottom|top|left|right
+                                                #   edge parts keep their given w/h and
+                                                #   auto-orient long-axis-along-edge (no
+                                                #   dimension swap); they slide past corners
+      "rot": "R90",                             # optional: force R0|R90|R180|R270 (overrides
+                                                #   rot_ok and the edge auto-orient)
       "rot_ok": true,                           # optional, default true: allow R90
       "breakout": 1.8 },                        # optional extra fan-out halo (mm)
     ...
@@ -62,7 +67,7 @@ DEFAULTS = dict(
     hole_keep_r=3.0,   # keep-out radius around each hole (no parts)
     anchor_w=0.6,      # weight on anchor-distance in the placement cost
 )
-EDGE_ROT = {"bottom": "R0", "top": "R180", "left": "R270", "right": "R90"}
+VALID_EDGES = ("bottom", "top", "left", "right")
 
 
 # ============================================================ placement engine
@@ -88,6 +93,7 @@ class Placer:
         # part bboxes are centred on the local origin (matches a typical footprint)
         self.by = {}
         self.rot_ok = {}
+        self.fixed_rot = {}
         self.fixed_edge = {}
         self.group = {}
         self.breakout = {}
@@ -98,9 +104,14 @@ class Placer:
             self.by[nm] = (-w / 2, -h / 2, w / 2, h / 2)
             self.rot_ok[nm] = bool(p.get("rot_ok", True))
             self.breakout[nm] = float(p.get("breakout", 0.0))
+            rr = p.get("rot")
+            if rr is not None:
+                if rr not in ("R0", "R90", "R180", "R270"):
+                    raise ValueError(f"{nm}: bad rot {rr!r}")
+                self.fixed_rot[nm] = rr
             fe = p.get("fixed_edge")
             if fe:
-                if fe not in EDGE_ROT:
+                if fe not in VALID_EDGES:
                     raise ValueError(f"{nm}: bad fixed_edge {fe!r}")
                 self.fixed_edge[nm] = fe
             g = p.get("group")
@@ -248,33 +259,50 @@ class Placer:
         return pts
 
     # --------------------------------------------------------------- placement
+    def _edge_rot(self, n, side):
+        """Rotation for an edge-locked part. An explicit per-part 'rot' wins; otherwise
+        orient so the part's LONG axis runs ALONG the edge (minimise how far it intrudes
+        into the board) while honouring the given w/h -- no surprise dimension swap."""
+        if n in self.fixed_rot:
+            return self.fixed_rot[n]
+        if not self.rot_ok.get(n, True):
+            return "R0"
+        a, b, c, d = self.fr(n, "R0"); w0, h0 = c - a, d - b
+        if side in ("left", "right"):                  # minimise into-board WIDTH
+            return "R0" if w0 <= h0 else "R90"
+        return "R0" if h0 <= w0 else "R90"             # bottom/top: minimise into-board HEIGHT
+
     def place_edges(self, rects, cands):
-        """Pin each fixed_edge part flush to its edge, walking along the edge past the
-        corner keep-outs. Returns pos dict or None if a connector won't fit."""
+        """Pin each fixed_edge part flush to its edge, sliding it along the edge past the
+        corner keep-outs and any perpendicular-edge parts already placed. Each part keeps
+        its given orientation (long axis along the edge) unless it carries an explicit
+        'rot'. Returns the pos dict, or None if a connector genuinely won't fit."""
         pos = {}
         W, H, m = self.W, self.H, self.MARGIN
         e0 = (self.HOLE_INSET + self.HOLE_KEEP_R + self.CGAP) if self.corner_holes \
             else (m + self.CGAP)
+        step = max(self.CGAP, 0.5)
         by_edge = {"bottom": [], "top": [], "left": [], "right": []}
         for nm in self.EDGE_NAMES:
             by_edge[self.fixed_edge[nm]].append(nm)
         for side, names in by_edge.items():
-            rot = EDGE_ROT[side]; t = e0
+            t = e0
             for n in names:
+                rot = self._edge_rot(n, side)
                 a, b, c, d = self.fr(n, rot); w, h = c - a, d - b
-                if side == "bottom":
-                    x0, y0 = t, m
-                elif side == "top":
-                    x0, y0 = t, H - m - h
-                elif side == "left":
-                    x0, y0 = m, t
-                else:                                  # right
-                    x0, y0 = W - m - w, t
-                r = (x0, y0, x0 + w, y0 + h)
                 lim = (W - e0) if side in ("bottom", "top") else (H - e0)
-                edge_end = r[2] if side in ("bottom", "top") else r[3]
-                if edge_end > lim + 1e-9 or not self.fits(r, rects):
-                    return None
+                while True:                            # slide along the edge until it fits
+                    if side == "bottom":   x0, y0 = t, m
+                    elif side == "top":    x0, y0 = t, H - m - h
+                    elif side == "left":   x0, y0 = m, t
+                    else:                  x0, y0 = W - m - w, t
+                    r = (x0, y0, x0 + w, y0 + h)
+                    edge_end = r[2] if side in ("bottom", "top") else r[3]
+                    if edge_end > lim + 1e-9:
+                        return None                    # ran off the end of the edge
+                    if self.fits(r, rects):
+                        break
+                    t += step                          # blocked: slide past the obstacle
                 ex = self.breakout.get(n, 0.0); g = self.GAP / 2
                 ri = (r[0] - g - (ex if side == "right" else 0),
                       r[1] - g - (ex if side == "top" else 0),
@@ -282,7 +310,7 @@ class Placer:
                       r[3] + g + (ex if side == "bottom" else 0))
                 pos[n] = (x0 - a, y0 - b, rot)
                 rects.append(ri); self.seed(cands, *ri)
-                t += (w if side in ("bottom", "top") else h) + self.CGAP
+                t = (r[2] if side in ("bottom", "top") else r[3]) + self.CGAP
         return pos
 
     def greedy_place(self, name, rects, cands, pos, anchor_xy=None, part_rect=None):
