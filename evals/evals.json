@@ -1,0 +1,49 @@
+{
+  "skill_name": "eagle-pcb-studio",
+  "evals": [
+    {
+      "id": 0,
+      "name": "gerber-fab-review",
+      "prompt": "I exported a 4-layer Gerber set from Autodesk Fusion Electronics for my lamp-controller board. The export folder is at <GERBER_DIR>. Before I send it to PCBWay for fabrication, can you check the export is complete and flag any manufacturing problems? I'm especially concerned about the solder mask around the fine-pitch parts \u2014 there's a USB-C connector and a DRV8313 motor driver in a 0.65mm-pitch package \u2014 and whether the drill sizes are OK. Give me a clear go/no-go fab-readiness review.",
+      "files": [
+        "fixtures/gerbers"
+      ],
+      "assertions": [
+        "Recognizes all 4 copper layers and does NOT falsely report any layer as missing (handles Fusion copper_top_l1/profile/.xln naming).",
+        "Reports the correct board size of 54 x 51 mm.",
+        "Flags the thin solder-mask dams on the fine-pitch USB-C / DRV8313 region as the key fab concern.",
+        "Reports the drill tools incl. the smallest drill (0.2 mm) without a false drill error.",
+        "Gives a clear go / no-go fab-readiness verdict."
+      ]
+    },
+    {
+      "id": 1,
+      "name": "erc-inconsistent-footprints",
+      "prompt": "Autodesk Fusion's ERC keeps throwing 'Part U_DRV has inconsistent footprints in schematic and board' (and the same for J_USB) and won't let me proceed. My EAGLE schematic is <SCH> and the board is <BRD>. Pin down exactly what's inconsistent between the schematic and the board for those parts, and fix it so the consistency errors clear. I've been doing my routing in the board, so if they disagree, the board is the correct version.",
+      "files": [
+        "fixtures/design.sch",
+        "fixtures/design.brd"
+      ],
+      "assertions": [
+        "Correctly identifies U_DRV (SOP65P640X120-29N) and J_USB (HRO_TYPE-C-31-M-12) as the inconsistent footprints.",
+        "Explains the inconsistency is in package geometry (solder-mask / slot) between sch and brd.",
+        "Produces a corrected schematic that is consistent with the board (check_consistency PASS on the output).",
+        "Corrected .sch remains valid EAGLE XML with DOCTYPE intact and parses.",
+        "Does not alter the netlist \u2014 parts (71) and nets (57) still match the board."
+      ]
+    },
+    {
+      "id": 2,
+      "name": "placement-min-area",
+      "prompt": "I'm starting the layout for a small 30 x 30 mm board and want a compact starting placement that'll be easy to route. Parts: U1 = ESP32-S3 module (18 x 25.5 mm), U2 = buck regulator (SOT23-6, ~3 x 3 mm), C1-C4 = 0402 decoupling caps (1 x 0.5 mm), L1 = inductor (5 x 5 mm), J1 = USB-C connector (9 x 4 mm, must sit on a board edge), J2 = 4-pin header (10 x 2.5 mm, also on an edge). Nets: 3V3 = U1,U2,C1,C2,L1; VBUS = J1,U2,C3; GND = everything; USB_DP and USB_DM = J1,U1. Place the parts to minimize board area while keeping the busy nets short, and give me an SVG preview I can look at.",
+      "files": [],
+      "assertions": [
+        "Places all 8 parts (U1, U2, C1-C4, L1, J1, J2).",
+        "No two parts overlap.",
+        "All parts fit within the 30 x 30 mm board.",
+        "J1 and J2 are placed on a board edge (constraint honored).",
+        "Produces a valid SVG preview (parses, contains the board outline + parts)."
+      ]
+    }
+  ]
+}
