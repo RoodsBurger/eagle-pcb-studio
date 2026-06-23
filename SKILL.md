@@ -14,8 +14,10 @@ description: >-
   ground/power planes are poured; size power traces (IPC-2221); render a board or a
   placement to SVG; or build a PCBWay/JLCPCB assembly BOM. This is the EAGLE/Fusion
   counterpart to the kicad-happy plugin — reach for it for ANY EAGLE/Fusion
-  hardware-design question even if the skill isn't named. For KiCad-native
-  .kicad_pcb/.kicad_sch projects, use kicad-happy instead.
+  hardware-design question even if the skill isn't named. Do NOT use it for KiCad
+  projects (.kicad_pcb/.kicad_sch — use kicad-happy), Altium or other non-EAGLE EDA
+  tools, general circuit-theory or firmware questions, spreadsheet or image tasks, or
+  pure component sourcing.
 ---
 
 # EAGLE / Fusion Electronics — PCB Studio
