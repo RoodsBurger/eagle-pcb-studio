@@ -17,6 +17,7 @@ description: >-
   for KiCad projects (.kicad_pcb/.kicad_sch — this skill is EAGLE/Fusion only), Altium
   or other non-EAGLE EDA tools, general circuit-theory or firmware questions,
   spreadsheet or image tasks, or pure component sourcing.
+license: MIT
 ---
 
 # EAGLE / Fusion Electronics — PCB Studio

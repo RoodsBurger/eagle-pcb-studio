@@ -1,70 +1,64 @@
 # eagle-pcb-studio
 
-**A Claude Code skill for generating and reviewing Autodesk Fusion Electronics / EAGLE 9.x PCB designs.**
+A **Claude Agent Skill** for generating and reviewing Autodesk Fusion Electronics / EAGLE 9.x PCB designs — `.sch` schematics, `.brd` boards, `.lbr` libraries, and exported Gerber/drill sets.
 
-`eagle-pcb-studio` gives an AI coding agent a focused toolset for EAGLE / Fusion Electronics projects — `.sch` schematics, `.brd` boards, `.lbr` libraries, and exported Gerber/drill sets. It does two things:
+It does two things:
 
 - **Generate** a placed board from a schematic — read an existing `.sch`, optimize component placement (wire length + area), and emit an unrouted `.brd` ready to route.
 - **Review** an existing design and its Gerbers before manufacturing — schematic ERC, board DFM, solder-mask dams, drills, plane pours, trace sizing, schematic↔board consistency, and a fab-ready BOM.
 
-Every script is self-contained and dependency-free (Python 3.8+ standard library; `openpyxl` only for the BOM), so they run inside Claude or standalone from the command line.
+## Install
 
-## Capabilities
+It's a skill — clone it into the folder Claude Code reads skills from:
 
-**Generate — turn a schematic into a placed board**
+```bash
+# Personal — available across all your projects
+git clone https://github.com/RoodsBurger/eagle-pcb-studio.git ~/.claude/skills/eagle-pcb-studio
 
-| Script | What it does |
+# …or per-project — committed alongside one repo
+git clone https://github.com/RoodsBurger/eagle-pcb-studio.git .claude/skills/eagle-pcb-studio
+```
+
+Claude Code discovers it automatically through `SKILL.md` and uses it when your request matches — nothing else to configure.
+
+## Using it
+
+Just ask Claude in plain language; it picks the right tool and runs it for you:
+
+- *"Check my Fusion gerber export in `./CAMOutputs` before I send it to the fab."*
+- *"Turn my schematic `design.sch` into a placed board."*
+- *"Fusion says my board and schematic have inconsistent footprints — fix it."*
+- *"Place these parts on a 30×30 mm board to minimize area and keep traces short."*
+- *"Make a PCBWay assembly BOM from `parts.csv`."*
+
+## What's inside
+
+The skill bundles focused, dependency-free tools (Python 3.8+ standard library; `openpyxl` for the BOM) that Claude runs as needed.
+
+**Generate — schematic → placed board**
+
+| Tool | What it does |
 |---|---|
-| `scripts/sch_to_board.py` | **Schematic → placed board.** Reads a `.sch`, maps pins→pads via the device connects, auto-sizes the board, runs the HPWL + BLF placer, and emits an unrouted `.brd` — libraries copied verbatim, every net present as a ratsnest. |
-| `scripts/find_libraries.py` | Resolve the **`.lbr` footprint libraries** a schematic needs — reports each as embedded, found-on-disk, or missing (searches `components/`, the project tree, EAGLE library roots). |
-| `scripts/analyze_schematic.py` | **Schematic ERC/correctness:** floating/single-pin nets, unconnected pins (escalated for input/power), missing values, duplicate refs, power-rail driver sanity, NC-pin checks. |
-| `scripts/place_components.py` | Spec-driven **HPWL + bottom-left-fill** placement: minimizes half-perimeter wire length and board area, edge-locks connectors, clusters net groups, pads obstacles so pads never touch. (The engine behind `sch_to_board.py`.) |
-| `scripts/render_svg.py` | Render a `.brd` **or a placement** (spec + placements) to SVG for a quick visual check. |
+| `sch_to_board.py` | **Schematic → placed board.** Reads a `.sch`, maps pins→pads via the device connects, auto-sizes the board, runs the HPWL + BLF placer, and emits an unrouted `.brd` — libraries copied verbatim, every net present as a ratsnest. |
+| `find_libraries.py` | Resolve the **`.lbr` footprint libraries** a schematic needs — reports each as embedded, found-on-disk, or missing (searches `components/`, the project tree, EAGLE library roots). |
+| `analyze_schematic.py` | **Schematic ERC/correctness:** floating/single-pin nets, unconnected pins (escalated for input/power), missing values, duplicate refs, power-rail driver sanity, NC-pin checks. |
+| `place_components.py` | Spec-driven **HPWL + bottom-left-fill** placement: minimizes half-perimeter wire length and board area, edge-locks connectors, clusters net groups, pads obstacles so pads never touch. (The engine behind `sch_to_board.py`.) |
+| `render_svg.py` | Render a `.brd` **or a placement** (spec + placements) to SVG for a quick visual check. |
 
 **Review — check a design and its Gerbers before fab**
 
-| Script | What it does |
+| Tool | What it does |
 |---|---|
-| `scripts/check_consistency.py` | Schematic↔board footprint + netlist consistency. Diagnoses and (`--sync`) fixes Fusion's *"inconsistent footprints in schematic and board"* ERC error. |
-| `scripts/analyze_board.py` | Board DFM: area, placement gaps/overlaps, **route/airwire completeness**, plane-pour verification, IPC-2221 power-trace widths, fine-pitch mask dams, thermal pads/vias. |
-| `scripts/analyze_gerbers.py` | Gerber + drill DFM: layer completeness, **solder-mask dam widths** (flags slivers below the fab minimum), drill tools/sizes, routed-slot detection, board size + layer alignment. Handles Fusion naming (`copper_top_l1`, `profile`, `.xln`). |
-| `scripts/make_bom.py` | Generate a PCBWay-format assembly BOM `.xlsx` from a CSV (required columns, `DNS` for do-not-populate). |
+| `check_consistency.py` | Schematic↔board footprint + netlist consistency. Diagnoses and (`--sync`) fixes Fusion's *"inconsistent footprints in schematic and board"* ERC error. |
+| `analyze_board.py` | Board DFM: area, placement gaps/overlaps, **route/airwire completeness**, plane-pour verification, IPC-2221 power-trace widths, fine-pitch mask dams, thermal pads/vias. |
+| `analyze_gerbers.py` | Gerber + drill DFM: layer completeness, **solder-mask dam widths** (flags slivers below the fab minimum), drill tools/sizes, routed-slot detection, board size + layer alignment. Handles Fusion layer naming (`copper_top_l1`, `profile`, `.xln`). |
+| `make_bom.py` | Generate a PCBWay-format assembly BOM `.xlsx` from a CSV (required columns, `DNS` for do-not-populate). |
 
-## Quick start
+## How it works
 
-```bash
-# Review a Fusion gerber export before fab
-python3 scripts/analyze_gerbers.py "path/to/CAMOutputs" --text
+**Generate a board** — Claude resolves the footprint libraries (`find_libraries.py`), runs schematic ERC (`analyze_schematic.py`), generates the placed board with the HPWL + BLF optimizer (`sch_to_board.py`, auto-sized or a fixed `--board WxH`), and previews it (`render_svg.py`).
 
-# Turn a schematic into a placed board
-python3 scripts/sch_to_board.py design.sch -o design.brd --text
-
-# Fix Fusion's "inconsistent footprints" ERC error (board = source of truth)
-python3 scripts/check_consistency.py design.sch design.brd --sync
-```
-
-## Install as a Claude Code skill
-
-```bash
-git clone https://github.com/RoodsBurger/eagle-pcb-studio.git ~/.claude/skills/eagle-pcb-studio
-```
-
-Claude Code discovers it via `SKILL.md`. The scripts also work on their own — no Claude required.
-
-## Workflows
-
-### A — Schematic → placed board
-1. `find_libraries.py` — confirm every footprint resolves (embedded or `.lbr` found); gather any missing.
-2. `analyze_schematic.py` — catch ERC issues (floating nets, unconnected power pins) before layout.
-3. `sch_to_board.py` — resolves each part's footprint, builds a placement spec, runs the HPWL+BLF optimizer, and writes a placed, unrouted `.brd` (auto-sized, or `--board WxH`).
-4. Preview with `render_svg.py`, then route in Fusion/EAGLE.
-
-### B — Review before fab
-1. `analyze_schematic.py` — schematic ERC/correctness.
-2. `check_consistency.py` — clear any "inconsistent footprints" ERC errors.
-3. `analyze_board.py` — confirm planes poured, 0 airwires, sane power-trace widths.
-4. `analyze_gerbers.py` — layer completeness, drills, solder-mask dams.
-5. `make_bom.py` — fab-ready BOM.
+**Review before fab** — Claude runs schematic ERC, clears any "inconsistent footprints" errors (`check_consistency.py --sync`), checks the board (planes poured, 0 airwires, sane power-trace widths via `analyze_board.py`), checks the Gerbers (completeness, drills, solder-mask dams via `analyze_gerbers.py`), and produces a fab-ready BOM (`make_bom.py`). Fab build settings — layer count, thickness, surface finish (ENIG for fine pitch), colors — are set in the fab's order form, not the Gerbers.
 
 ## References
 
@@ -78,9 +72,9 @@ In-depth docs the skill loads on demand (`references/`): EAGLE XML format, Gerbe
 
 ## Requirements
 
-Python 3.8+ (standard library only). `openpyxl` for `make_bom.py`.
+The skill's tools use Python 3.8+ (standard library only); `make_bom.py` also uses `openpyxl`.
 
-## Status / roadmap
+## Status
 
 Active development. Recently added: schematic ERC (`analyze_schematic.py`), `.lbr` library resolution (`find_libraries.py`), and placement rendering in `render_svg.py`. Possible next: datasheet-aware value checks, autoroute hints, panelization, and more fab presets.
 
