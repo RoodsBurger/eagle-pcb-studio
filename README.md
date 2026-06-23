@@ -13,16 +13,23 @@ All analysis scripts are self-contained and **dependency-free** (Python 3.8+ sta
 
 ## Capabilities
 
+**Generate — turn a schematic into a placed board**
+
 | Script | What it does |
 |---|---|
 | `scripts/sch_to_board.py` | **Schematic → placed board.** Reads a `.sch`, maps pins→pads via the device connects, auto-sizes the board, runs the HPWL + BLF placer, and emits an unrouted `.brd` — libraries copied verbatim, every net present as a ratsnest. |
-| `scripts/place_components.py` | Spec-driven **HPWL + bottom-left-fill** placement: minimizes half-perimeter wire length and board area, edge-locks connectors, clusters net groups, pads obstacles so pads never touch. |
-| `scripts/analyze_gerbers.py` | Gerber + drill DFM: layer completeness, **solder-mask dam widths** (flags slivers below the fab minimum), drill tools/sizes, routed-slot detection, board size + layer alignment. Handles Fusion naming (`copper_top_l1`, `profile`, `.xln`). |
-| `scripts/analyze_board.py` | Board DFM: area, placement gaps/overlaps, **route/airwire completeness**, plane-pour verification, IPC-2221 power-trace widths, fine-pitch mask dams, thermal pads/vias. |
-| `scripts/check_consistency.py` | Schematic↔board footprint + netlist consistency. Diagnoses and (`--sync`) fixes Fusion's *"inconsistent footprints in schematic and board"* ERC error. |
-| `scripts/analyze_schematic.py` | **Schematic ERC/correctness:** floating/single-pin nets, unconnected pins (escalated for input/power), missing values, duplicate refs, power-rail driver sanity, NC-pin checks. |
 | `scripts/find_libraries.py` | Resolve the **`.lbr` footprint libraries** a schematic needs — reports each as embedded, found-on-disk, or missing (searches `components/`, the project tree, EAGLE library roots). |
+| `scripts/analyze_schematic.py` | **Schematic ERC/correctness:** floating/single-pin nets, unconnected pins (escalated for input/power), missing values, duplicate refs, power-rail driver sanity, NC-pin checks. |
+| `scripts/place_components.py` | Spec-driven **HPWL + bottom-left-fill** placement: minimizes half-perimeter wire length and board area, edge-locks connectors, clusters net groups, pads obstacles so pads never touch. (The engine behind `sch_to_board.py`.) |
 | `scripts/render_svg.py` | Render a `.brd` **or a placement** (spec + placements) to SVG for a quick visual check. |
+
+**Review — check a design and its Gerbers before fab**
+
+| Script | What it does |
+|---|---|
+| `scripts/check_consistency.py` | Schematic↔board footprint + netlist consistency. Diagnoses and (`--sync`) fixes Fusion's *"inconsistent footprints in schematic and board"* ERC error. |
+| `scripts/analyze_board.py` | Board DFM: area, placement gaps/overlaps, **route/airwire completeness**, plane-pour verification, IPC-2221 power-trace widths, fine-pitch mask dams, thermal pads/vias. |
+| `scripts/analyze_gerbers.py` | Gerber + drill DFM: layer completeness, **solder-mask dam widths** (flags slivers below the fab minimum), drill tools/sizes, routed-slot detection, board size + layer alignment. Handles Fusion naming (`copper_top_l1`, `profile`, `.xln`). |
 | `scripts/make_bom.py` | Generate a PCBWay-format assembly BOM `.xlsx` from a CSV (required columns, `DNS` for do-not-populate). |
 
 ## Quick start
@@ -78,3 +85,7 @@ Python 3.8+ (standard library only). `openpyxl` for `make_bom.py`.
 ## Status / roadmap
 
 Active development. Recently added: schematic ERC (`analyze_schematic.py`), `.lbr` library resolution (`find_libraries.py`), and placement rendering in `render_svg.py`. Possible next: datasheet-aware value checks, autoroute hints, panelization, and more fab presets.
+
+## License
+
+MIT — see [LICENSE](LICENSE). © 2026 Rodolfo Raimundo.
