@@ -2,7 +2,7 @@
 
 **A Claude Code skill for generating and reviewing Autodesk Fusion Electronics / EAGLE 9.x PCB designs.**
 
-`eagle-pcb-studio` turns an AI coding agent into a PCB design assistant for **EAGLE `.sch` / `.brd` / `.lbr`** files and **Fusion-exported Gerbers** — formats that generic, KiCad-oriented tooling doesn't read correctly. EAGLE/Fusion store designs as XML (with a `<!DOCTYPE eagle ...>`) and export Gerbers with non-KiCad layer names and no X2 attributes, so this skill speaks that dialect natively.
+`eagle-pcb-studio` turns an AI coding agent into a PCB design assistant for **EAGLE `.sch` / `.brd` / `.lbr`** files and **Fusion-exported Gerbers**. EAGLE/Fusion store designs as XML (with a `<!DOCTYPE eagle ...>`) and export Gerbers with their own layer-naming convention, so the scripts parse that format natively.
 
 It does two things:
 
@@ -76,7 +76,7 @@ In-depth docs the skill loads on demand (`references/`): EAGLE XML format, Gerbe
 
 - **Preserve the DOCTYPE.** EAGLE files begin with `<!DOCTYPE eagle ...>`; edits are spliced into the raw text rather than re-serialized, so files stay Fusion-loadable and diffs stay small.
 - **A solder-mask dam can't exceed the copper gap.** On 0.5–0.65 mm-pitch parts, a ≥0.22 mm dam isn't possible without mask-defining the openings or ganging them — the tools account for this rather than over-promising.
-- **Fusion Gerbers have no X2 attributes** and use non-KiCad names; the analyzer identifies layers by Fusion naming first, then X2, then KiCad conventions.
+- **Fusion Gerbers have no X2 attributes** and use names like `copper_top_l1.gbr` / `profile.gbr` / `drill_1_16.xln`; the analyzer identifies layers by that Fusion naming first, then X2 attributes, then common extensions.
 
 ## Requirements
 

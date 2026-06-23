@@ -85,7 +85,7 @@ Use for "check my board", "is this ready to order", "review before fab", DFM, or
 
 ## Gotchas worth internalizing (the *why*)
 
-- **Fusion Gerbers have no X2 attributes** and use names like `copper_top_l1.gbr` / `profile.gbr` / `drill_1_16.xln`. KiCad-oriented tools mis-flag them as "missing layers." `analyze_gerbers.py` handles the Fusion naming first.
+- **Fusion Gerbers have no X2 attributes** and use names like `copper_top_l1.gbr` / `profile.gbr` / `drill_1_16.xln`, so layer identification must key off the Fusion naming — which `analyze_gerbers.py` does first (then X2 attributes, then common extensions).
 - **A solder-mask dam can't exceed the copper gap.** On a 0.5–0.65mm-pitch part the pads may be ~0.2mm apart, so a ≥0.22mm dam is impossible without the mask encroaching onto the pads (mask-defined) or you *expose/gang* the area (standard for fine pitch). Don't promise a wider dam than the geometry allows.
 - **Plated slots, the EAGLE way:** a round pad **plus a single `layer-46` (Milling) wire through it, width = drill diameter** — *not* a closed milling outline (which exports as a round drill **plus** a separate cutout that fabs flag as "slot and hole overlapped"). Native Excellon can't emit slots, so a default CAM job may still leave the round drill — tell the fab "round drill + route = same plated slot."
 - **Footprint geometry flows `.lbr` → generator → `.sch`/`.brd`.** To change a footprint, edit the `.lbr` and regenerate; the routed `.sch`/`.brd` embed copies that must stay byte-identical or ERC complains. A saved `.sch` already embeds its libraries — `find_libraries.py` reports embedded vs needs-the-`.lbr`.
