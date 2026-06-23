@@ -20,7 +20,9 @@ All analysis scripts are self-contained and **dependency-free** (Python 3.8+ sta
 | `scripts/analyze_gerbers.py` | Gerber + drill DFM: layer completeness, **solder-mask dam widths** (flags slivers below the fab minimum), drill tools/sizes, routed-slot detection, board size + layer alignment. Handles Fusion naming (`copper_top_l1`, `profile`, `.xln`). |
 | `scripts/analyze_board.py` | Board DFM: area, placement gaps/overlaps, **route/airwire completeness**, plane-pour verification, IPC-2221 power-trace widths, fine-pitch mask dams, thermal pads/vias. |
 | `scripts/check_consistency.py` | Schematic↔board footprint + netlist consistency. Diagnoses and (`--sync`) fixes Fusion's *"inconsistent footprints in schematic and board"* ERC error. |
-| `scripts/render_svg.py` | Render a `.brd` to SVG for a quick visual check. |
+| `scripts/analyze_schematic.py` | **Schematic ERC/correctness:** floating/single-pin nets, unconnected pins (escalated for input/power), missing values, duplicate refs, power-rail driver sanity, NC-pin checks. |
+| `scripts/find_libraries.py` | Resolve the **`.lbr` footprint libraries** a schematic needs — reports each as embedded, found-on-disk, or missing (searches `components/`, the project tree, EAGLE library roots). |
+| `scripts/render_svg.py` | Render a `.brd` **or a placement** (spec + placements) to SVG for a quick visual check. |
 | `scripts/make_bom.py` | Generate a PCBWay-format assembly BOM `.xlsx` from a CSV (required columns, `DNS` for do-not-populate). |
 
 ## Quick start
@@ -47,14 +49,17 @@ Claude Code discovers it via `SKILL.md`. The scripts also work on their own — 
 ## Workflows
 
 ### A — Schematic → placed board
-1. Point `sch_to_board.py` at your `.sch`. It resolves each part's footprint, builds a placement spec, runs the optimizer, and writes a placed, unrouted `.brd`.
-2. Preview with `render_svg.py`, then route in Fusion/EAGLE.
+1. `find_libraries.py` — confirm every footprint resolves (embedded or `.lbr` found); gather any missing.
+2. `analyze_schematic.py` — catch ERC issues (floating nets, unconnected power pins) before layout.
+3. `sch_to_board.py` — resolves each part's footprint, builds a placement spec, runs the HPWL+BLF optimizer, and writes a placed, unrouted `.brd` (auto-sized, or `--board WxH`).
+4. Preview with `render_svg.py`, then route in Fusion/EAGLE.
 
 ### B — Review before fab
-1. `check_consistency.py` — clear any "inconsistent footprints" ERC errors.
-2. `analyze_board.py` — confirm planes poured, 0 airwires, sane power-trace widths.
-3. `analyze_gerbers.py` — layer completeness, drills, solder-mask dams.
-4. `make_bom.py` — fab-ready BOM.
+1. `analyze_schematic.py` — schematic ERC/correctness.
+2. `check_consistency.py` — clear any "inconsistent footprints" ERC errors.
+3. `analyze_board.py` — confirm planes poured, 0 airwires, sane power-trace widths.
+4. `analyze_gerbers.py` — layer completeness, drills, solder-mask dams.
+5. `make_bom.py` — fab-ready BOM.
 
 ## References
 
@@ -72,4 +77,4 @@ Python 3.8+ (standard library only). `openpyxl` for `make_bom.py`.
 
 ## Status / roadmap
 
-Active development. Landing next: a schematic ERC/correctness analyzer (`analyze_schematic.py`), automatic `.lbr` library resolution from a `.sch`, and placement-spec rendering in `render_svg.py`.
+Active development. Recently added: schematic ERC (`analyze_schematic.py`), `.lbr` library resolution (`find_libraries.py`), and placement rendering in `render_svg.py`. Possible next: datasheet-aware value checks, autoroute hints, panelization, and more fab presets.

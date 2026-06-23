@@ -16,11 +16,19 @@ Draws, with distinct per-layer colours and a legend:
 The viewBox matches the board mm extents (1 SVG unit = 1 mm) and the whole drawing
 is Y-flipped (SVG y grows downward) so it reads the same way it looks in the editor.
 
+It can ALSO render a PLACEMENT preview (no .brd needed): given a placement SPEC
+({board:{w,h}, parts:[{name,w,h,..}], nets:[..]}) and the placements produced by
+place_components.py ([{name,x,y,rot}]), it draws the board outline, each part as a
+labelled rectangle at its placed (x,y,rot), and faint ratsnest lines between the
+centres of parts sharing a net. Same Y-flip so it reads like the board.
+
 Usage:
     python3 render_svg.py <board.brd> -o <out.svg> [--text]
     python3 render_svg.py <board.brd>                 # writes <board>.svg next to it
+    python3 render_svg.py --spec <spec.json> --placements <pl.json> -o <out.svg> [--text]
+    python3 render_svg.py --placements <combined.json> -o <out.svg>   # spec+placements in one
 """
-import sys, os, math, argparse
+import sys, os, math, argparse, json
 import xml.etree.ElementTree as ET
 
 # ---------------------------------------------------------------- layer palette
@@ -177,6 +185,16 @@ class SVG:
         st = f' stroke="{stroke}" stroke-width="0.1"' if stroke else ""
         self.add(f'<polygon points="{s.strip()}" fill="{color}" '
                  f'fill-opacity="{opacity}"{st}/>', kind)
+
+    def rect_outline(self, x0, y0, w, h, color, width, kind, fill="none"):
+        self.add(f'<rect x="{x0:.4f}" y="{y0:.4f}" width="{w:.4f}" height="{h:.4f}" '
+                 f'fill="{fill}" stroke="{color}" stroke-width="{width:.3f}"/>', kind)
+
+    def text(self, x, y, s, color, size, kind, anchor="middle"):
+        esc = (str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
+        self.add(f'<text x="{x:.4f}" y="{y:.4f}" font-size="{size:.3f}" '
+                 f'fill="{color}" text-anchor="{anchor}" '
+                 f'font-family="monospace">{esc}</text>', kind)
 
 
 # ---------------------------------------------------------------- rendering
@@ -533,17 +551,190 @@ def build_svg(board: Board):
     return out, (minx, miny, maxx, maxy, had_outline), svg.counts
 
 
+# ---------------------------------------------------------------- placement mode
+# Colours for the placement preview (distinct from the dense .brd palette).
+PL_OUTLINE = "#f4d03f"   # board edge
+PL_PART    = "#2f6fd0"   # part fill (faint)
+PL_PART_ED = "#6fa8e8"   # part edge
+PL_LABEL   = "#e8e8e8"   # part name
+PL_RATS    = "#3aa76d"   # ratsnest
+
+
+def _part_size(part, rot):
+    """Board-frame (w, h) of a part bbox after rotation. R90/R270 swap w<->h
+    (matches place_components rbox(); the bbox is symmetric about the origin so
+    its centre stays at the placed (x, y))."""
+    w, h = f(part.get("w")), f(part.get("h"))
+    if rot in ("R90", "R270"):
+        return h, w
+    return w, h
+
+
+def placement_extent(board, parts):
+    """Board outline extents in mm: just (0,0)-(w,h) of the spec board."""
+    return 0.0, 0.0, f(board.get("w"), 10.0), f(board.get("h"), 10.0)
+
+
+def render_placement(spec, placements, svg, flipY):
+    """Draw a placement: board outline, each placed part as a labelled rect, and
+    faint ratsnest lines between centres of parts sharing a net. y passes through
+    flipY so the preview reads upright."""
+    board = spec.get("board", {})
+    bw, bh = f(board.get("w"), 10.0), f(board.get("h"), 10.0)
+    parts_by_name = {p.get("name"): p for p in spec.get("parts", [])}
+    pos = {p.get("name"): p for p in placements}
+
+    # board outline rectangle
+    svg.rect_outline(0.0, flipY(bh), bw, bh, PL_OUTLINE, 0.3, "outline")
+
+    # ratsnest: connect centres of parts that share a net (skip self/missing)
+    label_h = max(min(bw, bh) * 0.045, 1.4)
+    for net in spec.get("nets", []):
+        members = [m for m in net.get("parts", []) if m in pos]
+        if len(members) < 2:
+            continue
+        ctrs = [(f(pos[m].get("x")), f(pos[m].get("y"))) for m in members]
+        # star from the first member to keep the drawing readable
+        x0, y0 = ctrs[0]
+        for x1, y1 in ctrs[1:]:
+            svg.add(f'<line x1="{x0:.4f}" y1="{flipY(y0):.4f}" '
+                    f'x2="{x1:.4f}" y2="{flipY(y1):.4f}" stroke="{PL_RATS}" '
+                    f'stroke-width="0.1" stroke-opacity="0.35"/>', "ratsnest")
+
+    # parts: labelled rectangle centred at placed (x, y)
+    for pl in placements:
+        nm = pl.get("name")
+        part = parts_by_name.get(nm)
+        if part is None:
+            continue
+        rot = pl.get("rot", "R0")
+        cx, cy = f(pl.get("x")), f(pl.get("y"))
+        w, h = _part_size(part, rot)
+        svg.rect_outline(cx - w / 2, flipY(cy) - h / 2, w, h, PL_PART_ED, 0.12,
+                         "part", fill=PL_PART)
+        svg.text(cx, flipY(cy) + label_h * 0.35, nm, PL_LABEL,
+                 min(label_h, max(w, h) * 0.8), "label")
+
+
+def build_placement_svg(spec, placements):
+    """Assemble the full placement-preview SVG; mirrors build_svg's layout."""
+    minx, miny, maxx, maxy = placement_extent(spec.get("board", {}),
+                                              spec.get("parts", []))
+    pad = 2.0
+    bw = (maxx - minx) + 2 * pad
+    bh = (maxy - miny) + 2 * pad
+    legend_w = 34.0
+
+    def flipY(y):
+        return (maxy - y) + pad
+
+    svg = SVG()
+    render_placement(spec, placements, svg, flipY)
+
+    items = [(PL_OUTLINE, "Board outline"), (PL_PART_ED, "Part"),
+             (PL_RATS, "Ratsnest (net)")]
+    leg_rows = []
+    dy = 4.2
+    lx, ly = bw + 2.0, pad + 2.0
+    for i, (color, label) in enumerate(items):
+        yy = ly + i * dy
+        leg_rows.append(f'<rect x="{lx:.2f}" y="{yy:.2f}" width="3" height="3" '
+                        f'fill="{color}"/>')
+        leg_rows.append(f'<text x="{lx+4.2:.2f}" y="{yy+2.6:.2f}" font-size="2.6" '
+                        f'fill="#d6dce2" font-family="monospace">{label}</text>')
+    leg = "\n".join(leg_rows)
+    leg_h = len(items) * dy
+
+    total_w = bw + legend_w
+    total_h = max(bh, leg_h + pad + 6)
+
+    body = "".join(svg.parts)
+    drawing = f'<g transform="translate({pad - minx:.4f},0)">\n{body}\n</g>'
+    header = (
+        f'<svg xmlns="http://www.w3.org/2000/svg" '
+        f'viewBox="0 0 {total_w:.3f} {total_h:.3f}" '
+        f'width="{total_w*4:.0f}" height="{total_h*4:.0f}" '
+        f'font-family="monospace">\n'
+        f'<rect x="0" y="0" width="{total_w:.3f}" height="{total_h:.3f}" '
+        f'fill="{BG_COLOR}"/>\n'
+    )
+    title = (f'<text x="{bw+2.0:.2f}" y="{pad:.2f}" font-size="3" fill="#f4d03f">'
+             f'placement ({len(placements)} parts)</text>\n')
+    footer = f'\n{leg}\n</svg>\n'
+    out = header + title + drawing + footer
+    return out, (minx, miny, maxx, maxy), svg.counts
+
+
+def load_placement(spec_path, placements_path):
+    """Resolve spec + placements from one or two JSON files. Either file may be a
+    combined object (spec keys + 'placements'); --placements alone is enough if it
+    carries the spec too. Returns (spec, placements_list)."""
+    spec = {}
+    placements = None
+
+    def read(p):
+        with open(p) as fh:
+            return json.load(fh)
+
+    raw_pl = read(placements_path) if placements_path else None
+    raw_sp = read(spec_path) if spec_path else None
+
+    # placements list lives under 'placements' or is the top-level list itself
+    def extract_pl(obj):
+        if obj is None:
+            return None
+        if isinstance(obj, list):
+            return obj
+        if isinstance(obj, dict) and isinstance(obj.get("placements"), list):
+            return obj["placements"]
+        return None
+
+    # spec is whatever object carries board/parts (a combined file qualifies)
+    def extract_sp(obj):
+        if isinstance(obj, dict) and ("board" in obj or "parts" in obj):
+            return obj
+        return None
+
+    placements = extract_pl(raw_pl) or extract_pl(raw_sp)
+    spec = extract_sp(raw_sp) or extract_sp(raw_pl) or {}
+
+    if placements is None:
+        raise SystemExit("no placements found (need a [{name,x,y,rot}] list or "
+                         "an object with a 'placements' key)")
+    if not spec.get("board"):
+        raise SystemExit("no spec board found (need {board:{w,h}, parts:[...]} "
+                         "in --spec or in the combined placements file)")
+    return spec, placements
+
+
 board_path_global = ""
 
 
-def main():
-    global board_path_global
-    ap = argparse.ArgumentParser(description="Render an EAGLE/Fusion .brd to SVG.")
-    ap.add_argument("brd", help="path to the .brd file")
-    ap.add_argument("-o", "--output", help="output .svg path (default: <brd>.svg)")
-    ap.add_argument("--text", action="store_true", help="print a human summary")
-    args = ap.parse_args()
+def render_placement_mode(args):
+    """Placement-preview path: build the SVG from a spec + placements JSON."""
+    spec, placements = load_placement(args.spec, args.placements)
 
+    src = args.placements or args.spec
+    out_path = args.output or (os.path.splitext(src)[0] + ".svg")
+    svg_text, extent, counts = build_placement_svg(spec, placements)
+
+    with open(out_path, "w") as fh:
+        fh.write(svg_text)
+
+    minx, miny, maxx, maxy = extent
+    total = sum(counts.values())
+    print(f"wrote {out_path}")
+    print(f"board outline: {maxx-minx:.2f} x {maxy-miny:.2f} mm (placement)")
+    print(f"drawn elements: {total}")
+    if args.text:
+        for k in sorted(counts):
+            print(f"  {k:12s} {counts[k]}")
+    return 0
+
+
+def render_brd_mode(args):
+    """Original .brd path: parse the board XML and stamp every footprint."""
+    global board_path_global
     if not os.path.isfile(args.brd):
         raise SystemExit(f"not found: {args.brd}")
     board_path_global = args.brd
@@ -565,7 +756,28 @@ def main():
     if args.text:
         for k in sorted(counts):
             print(f"  {k:12s} {counts[k]}")
+    return 0
+
+
+def main():
+    ap = argparse.ArgumentParser(
+        description="Render an EAGLE/Fusion .brd, or a placement spec, to SVG.")
+    ap.add_argument("brd", nargs="?", help="path to the .brd file (board render mode)")
+    ap.add_argument("-o", "--output", help="output .svg path (default: <src>.svg)")
+    ap.add_argument("--text", action="store_true", help="print a human summary")
+    ap.add_argument("--spec", help="placement SPEC JSON ({board,parts,nets})")
+    ap.add_argument("--placements", help="placements JSON ([{name,x,y,rot}] or a "
+                    "combined file that also carries the spec)")
+    args = ap.parse_args()
+
+    if args.spec or args.placements:
+        if args.brd:
+            ap.error("give a .brd OR --spec/--placements, not both")
+        return render_placement_mode(args)
+    if not args.brd:
+        ap.error("provide a .brd path, or --spec/--placements for placement mode")
+    return render_brd_mode(args)
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
