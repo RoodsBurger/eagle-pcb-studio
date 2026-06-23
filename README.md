@@ -2,7 +2,7 @@
 
 **A Claude Code skill for generating and reviewing Autodesk Fusion Electronics / EAGLE 9.x PCB designs.**
 
-`eagle-pcb-studio` is the EAGLE/Fusion counterpart to [kicad-happy](https://github.com/aklofas/kicad-happy): it turns an AI coding agent into a PCB design assistant for **EAGLE `.sch` / `.brd` / `.lbr`** files and **Fusion-exported Gerbers** — formats that KiCad-oriented tooling doesn't read correctly. EAGLE/Fusion store designs as XML (with a `<!DOCTYPE eagle ...>`) and export Gerbers with non-KiCad layer names and no X2 attributes, so this skill speaks that dialect natively.
+`eagle-pcb-studio` turns an AI coding agent into a PCB design assistant for **EAGLE `.sch` / `.brd` / `.lbr`** files and **Fusion-exported Gerbers** — formats that generic, KiCad-oriented tooling doesn't read correctly. EAGLE/Fusion store designs as XML (with a `<!DOCTYPE eagle ...>`) and export Gerbers with non-KiCad layer names and no X2 attributes, so this skill speaks that dialect natively.
 
 It does two things:
 

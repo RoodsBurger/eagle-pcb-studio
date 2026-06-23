@@ -12,12 +12,11 @@ description: >-
   this ready to fab/order"; fix schematic↔board "inconsistent footprints" ERC errors;
   measure or fix thin solder-mask dams/slivers; convert holes to plated slots; verify
   ground/power planes are poured; size power traces (IPC-2221); render a board or a
-  placement to SVG; or build a PCBWay/JLCPCB assembly BOM. This is the EAGLE/Fusion
-  counterpart to the kicad-happy plugin — reach for it for ANY EAGLE/Fusion
-  hardware-design question even if the skill isn't named. Do NOT use it for KiCad
-  projects (.kicad_pcb/.kicad_sch — use kicad-happy), Altium or other non-EAGLE EDA
-  tools, general circuit-theory or firmware questions, spreadsheet or image tasks, or
-  pure component sourcing.
+  placement to SVG; or build a PCBWay/JLCPCB assembly BOM. Reach for it for ANY
+  EAGLE/Fusion hardware-design question even if the skill isn't named. Do NOT use it
+  for KiCad projects (.kicad_pcb/.kicad_sch — this skill is EAGLE/Fusion only), Altium
+  or other non-EAGLE EDA tools, general circuit-theory or firmware questions,
+  spreadsheet or image tasks, or pure component sourcing.
 ---
 
 # EAGLE / Fusion Electronics — PCB Studio
@@ -27,7 +26,7 @@ This skill does two jobs for **EAGLE 9.x / Autodesk Fusion Electronics** designs
 1. **Generate** — turn an existing schematic (`.sch`) into a **placed board** (`.brd`) with optimized component placement, resolving the footprint libraries it needs and previewing the result.
 2. **Review** — check a design and its Gerber export for manufacturing: schematic ERC, board DFM, solder-mask dams, plane pours, trace sizing, sch↔board consistency, and a fab-ready BOM.
 
-> **Scope check.** EAGLE/Fusion store designs as XML (`.brd`/`.sch` with a `<!DOCTYPE eagle ...>`) — *not* KiCad's `.kicad_pcb`. If the user has a KiCad project, use **kicad-happy**. If they have `.brd`/`.sch`/`.lbr` or Fusion-named Gerbers, this is the right skill.
+> **Scope check.** EAGLE/Fusion store designs as XML (`.brd`/`.sch` with a `<!DOCTYPE eagle ...>`) — *not* KiCad's `.kicad_pcb`. This skill is for EAGLE/Fusion only and does not handle KiCad-native projects. If the user has `.brd`/`.sch`/`.lbr` or Fusion-named Gerbers, this is the right skill.
 
 All scripts are self-contained, stdlib-only (Python 3.8+; `make_bom.py` also needs `openpyxl`), take file paths as arguments, and print a `--text` summary or JSON (`-o`). Real-project paths often contain spaces — **always quote them.**
 
