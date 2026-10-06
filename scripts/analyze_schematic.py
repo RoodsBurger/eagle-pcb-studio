@@ -93,6 +93,74 @@ def build_library_index(root):
     return symbols, devicesets
 
 
+def library_integrity(root, symbols, devicesets, part_by_name):
+    """Structural checks Fusion's importer and ERC enforce beyond the DTD: duplicate pin/pad names,
+    gates without symbols, devices without packages, connects naming unknown pins or pads, parts whose
+    library/deviceset/device do not resolve, pinrefs to unknown parts/gates/pins, undefined net classes."""
+    out = []
+    pkg_pads = {}
+    for lib in root.iter("library"):
+        ln = lib.get("name")
+        for sym in lib.iter("symbol"):
+            names = [pin.get("name") for pin in sym.findall("pin")]
+            dups = sorted({n for n in names if names.count(n) > 1})
+            if dups:
+                out.append(("ERROR", "lib.symbol_duplicate_pin", f"symbol {ln}/{sym.get('name')}: duplicate pin name(s) {dups}", "Rename the pins; Fusion rejects duplicate pin names."))
+        for pk in lib.iter("package"):
+            names = [e.get("name") for e in pk.findall("smd") + pk.findall("pad")]
+            pkg_pads[(ln, pk.get("name"))] = set(names)
+            dups = sorted({n for n in names if names.count(n) > 1})
+            if dups:
+                out.append(("ERROR", "lib.package_duplicate_pad", f"package {ln}/{pk.get('name')}: duplicate pad name(s) {dups}", "Rename the pads."))
+        for ds in lib.iter("deviceset"):
+            dsn = ds.get("name")
+            gate_syms = {g.get("name"): g.get("symbol") for g in ds.findall("gates/gate")}
+            for g, sym in gate_syms.items():
+                if (ln, sym) not in symbols:
+                    out.append(("ERROR", "lib.gate_symbol_missing", f"deviceset {ln}/{dsn}: gate {g} uses missing symbol {sym!r}", "Add the symbol to the library."))
+            for dev in ds.findall("devices/device"):
+                dn = dev.get("name", "")
+                pkg = dev.get("package")
+                if pkg is not None and (ln, pkg) not in pkg_pads:
+                    out.append(("ERROR", "lib.device_package_missing", f"device {ln}/{dsn}/{dn!r}: package {pkg!r} missing", "Add the package to the library copy."))
+                pads_here = pkg_pads.get((ln, pkg), set())
+                for c in dev.findall("connects/connect"):
+                    sym = gate_syms.get(c.get("gate"))
+                    if sym is not None and c.get("pin") not in symbols.get((ln, sym), {}):
+                        out.append(("ERROR", "lib.connect_pin_missing", f"device {ln}/{dsn}/{dn!r}: connect names pin {c.get('pin')!r} not in symbol {sym}", "Fix the connect or the symbol."))
+                    missing = [pd for pd in (c.get("pad") or "").split() if pkg is not None and pd not in pads_here]
+                    if missing:
+                        out.append(("ERROR", "lib.connect_pad_missing",
+                                    f"device {ln}/{dsn}/{dn!r}: connect for pin {c.get('pin')} names pad(s) {missing} that package {pkg} lacks",
+                                    "The schematic's library copy is out of sync with the device: re-sync the package (check_consistency.py --sync against the board, or re-add the part from the updated .lbr). Board generators cannot emit contactrefs for these pads."))
+    for nm, pt in part_by_name.items():
+        key = (pt.get("library"), pt.get("deviceset"))
+        ds = devicesets.get(key)
+        if ds is None:
+            out.append(("ERROR", "lib.part_unresolved", f"part {nm}: library/deviceset {key} not found in the schematic's libraries", "Re-add the part or embed its library."))
+        elif (pt.get("device") or "") not in ds["devices"]:
+            out.append(("ERROR", "lib.part_device_missing", f"part {nm}: device {pt.get('device')!r} not in deviceset {key[1]}", "Pick an existing device variant."))
+    for net in root.iter("net"):
+        for pr in net.iter("pinref"):
+            pt = part_by_name.get(pr.get("part"))
+            if pt is None:
+                out.append(("ERROR", "net.pinref_unknown_part", f"net {net.get('name')}: pinref to unknown part {pr.get('part')!r}", "Remove the stale pinref."))
+                continue
+            ds = devicesets.get((pt.get("library"), pt.get("deviceset")))
+            if ds is None:
+                continue
+            sym = ds["gates"].get(pr.get("gate"))
+            if sym is None:
+                out.append(("ERROR", "net.pinref_unknown_gate", f"net {net.get('name')}: {pr.get('part')} has no gate {pr.get('gate')!r}", "Fix the pinref gate."))
+            elif pr.get("pin") not in symbols.get((pt.get("library"), sym), {}):
+                out.append(("ERROR", "net.pinref_unknown_pin", f"net {net.get('name')}: {pr.get('part')} gate {pr.get('gate')} has no pin {pr.get('pin')!r}", "Fix the pinref pin."))
+    classes = {c.get("number") for c in root.iter("class")}
+    for net in root.iter("net"):
+        if net.get("class") not in (None, "0") and net.get("class") not in classes:
+            out.append(("WARNING", "net.class_undefined", f"net {net.get('name')}: class {net.get('class')} is not defined in <classes>", "Define the net class or reset the net to class 0."))
+    return out
+
+
 def part_pins(part, symbols, devicesets):
     """All schematic pins of a part as {(gate, pin): direction}.
 
@@ -182,6 +250,10 @@ def analyze(sch_path):
             dup_names.append(nm)
         else:
             part_by_name[nm] = p
+
+    # ---- library integrity ----------------------------------------------
+    for sev, fid, msg, rec in library_integrity(root, symbols, devicesets, part_by_name):
+        add(sev, fid, msg, rec)
 
     # Every schematic pin of every placed part: {(part, gate, pin): direction}.
     all_pins = {}

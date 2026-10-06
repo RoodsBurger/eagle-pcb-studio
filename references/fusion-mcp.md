@@ -70,3 +70,24 @@ placeholders are plain text substitutions (`--set`).
   `None`; analyze the full set.
 - **Extrude cuts hit every intersecting body** unless `participantBodies` names the target; always set
   it in generated 3D scripts.
+- **"Schematic/PCB sync deactivated: Run ERC"** appears after every import. One ERC run re-activates
+  forward/back annotation. ERC consistency also compares device **technology attributes** (MF, MP,
+  PACKAGE, PRICE, DESCRIPTION…), so a generated board must copy them onto its `<element>`s exactly as
+  EAGLE does, or the pair reads as inconsistent.
+- **Copper edits made in Fusion do not flow back to a generator.** Export the board, transplant the
+  edited nets' wires/vias into the generator's files, regenerate, upload again. Fusion's route/optimize
+  leaves tiny Y-stubs (0.03–1.5 mm) on plane-net pads: they pass DRC but should be dropped on import.
+- **Upload stuck in state 0** means Fusion's Job Status queue is wedged — clear it. Do not run scripts
+  while the user is routing. Deleted cloud files are unreachable (`findFileById` fails, there is no
+  trash). Silk colour is a per-document Fusion setting: re-apply it after every upload.
+- **DRC approvals can live in the board** as `<approved>` entries (by signature hash); "Drill Size"
+  items on drills that equal the DRU minimum are notes to accept, or raise with `msDrill` 0.19 mm.
+- **CAM must run as an N-layer job.** A 2-layer job on a 4-layer board drops the inner planes with no
+  error. Check the zip for `copper_inner_l2` / `copper_inner_l3` (`analyze_gerbers.py --layers 4`).
+- **3D interference:** exclude copper/soldermask bodies (the client collects Board + Packages bodies)
+  or Fusion returns nothing. Known false hits: STEP pin retention kinks a few hundredths wider than
+  their holes, the round barrel the 3D PCB draws for slot pads, SOT-23 / can STEP frames rotated 90°,
+  library models attached below the board surface.
+- **Managed-library package copies:** strip the Fusion-only `<polygonshape>` elements before importing
+  into EAGLE 9, and apply a footprint fix to **every** copy of the package (board, schematic, managed
+  cache) or it silently fails to land.

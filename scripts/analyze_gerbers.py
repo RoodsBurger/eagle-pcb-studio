@@ -452,6 +452,8 @@ def parse_drill(path):
 
     routed = bool(re.search(r"\bG85\b", text) or re.search(r"\bM15\b", text)
                   or re.search(r"\bG00\b", text) or re.search(r"\bG01\b", text))
+    # one M15 (tool down) per routed slot block; G85 is the one-line slot form
+    slots = len(re.findall(r"^M15\b", text, re.M)) + len(re.findall(r"\bG85\b", text))
 
     hits = {t: 0 for t in tools}
     cur_tool = None
@@ -473,6 +475,7 @@ def parse_drill(path):
         "tools": tools,
         "hits": hits,
         "routed": routed,
+        "slots": slots,
         "smallest": smallest,
         "total_hits": sum(hits.values()),
     }
@@ -482,7 +485,7 @@ def parse_drill(path):
 # Main analysis
 # --------------------------------------------------------------------------- #
 
-def analyze(root, threshold_mm, neighbour_mm):
+def analyze(root, threshold_mm, neighbour_mm, expect_layers=None, expect_slots=None):
     findings = []
     gerbers, drills = scan_dir(root)
 
@@ -514,7 +517,13 @@ def analyze(root, threshold_mm, neighbour_mm):
     masks = by_role.get("soldermask", [])
     outline = by_role.get("outline", [])
 
-    if len(copper) >= 2:
+    if expect_layers is not None and len(copper) != expect_layers:
+        findings.append(finding(
+            SEV_ERROR, "completeness.copper",
+            "Found %d copper layer(s) but the board has %d: %s." % (
+                len(copper), expect_layers, ", ".join(sorted(c["layer"] for c in copper)) or "none"),
+            "Run the CAM job for the real layer count; a 2-layer job on a 4-layer board drops the inner planes silently."))
+    elif len(copper) >= 2:
         findings.append(finding(
             SEV_INFO, "completeness.copper",
             "Found %d copper layer(s): %s." % (
@@ -612,6 +621,7 @@ def analyze(root, threshold_mm, neighbour_mm):
             "smallest_mm": round(d["smallest"], 4) if d["smallest"] else None,
             "total_hits": d["total_hits"],
             "routed": d["routed"],
+            "slots": d.get("slots", 0),
         })
         if d["smallest"] is not None:
             mode = "routed slots (G85/M15)" if d["routed"] else "round-hole only"
@@ -630,6 +640,19 @@ def analyze(root, threshold_mm, neighbour_mm):
 
     # ---- plated-slot / overlap heuristic -------------------------------- #
     any_routed = any(d["routed"] for d in drill_results)
+    n_slots = sum(d.get("slots", 0) for d in drill_results)
+    if any_routed:
+        findings.append(finding(
+            SEV_INFO if expect_slots in (None, n_slots) else SEV_ERROR, "drill.slots",
+            "%d routed slot block(s) (M15/G85) in the drill file(s)%s." % (
+                n_slots, "" if expect_slots is None else "; expected %d" % expect_slots),
+            "" if expect_slots in (None, n_slots) else
+            "Slot count differs from the design's slot pads: check the CAM job and the footprint's slot definition."))
+    elif expect_slots:
+        findings.append(finding(
+            SEV_ERROR, "drill.slots",
+            "Expected %d routed slot(s) but the drill file has none." % expect_slots,
+            "Native slot pads (shape=\"slot\") export as routed blocks; layer-46 milling drawings never reach the drill file."))
     if drill_results and not any_routed:
         findings.append(finding(
             SEV_INFO, "drill.slots",
@@ -799,6 +822,10 @@ def main(argv=None):
     ap.add_argument("--neighbour", type=float, default=NEIGHBOUR_RADIUS_MM,
                     help="centre distance (mm) for adjacent-opening pairs "
                     "(default %.1f)" % NEIGHBOUR_RADIUS_MM)
+    ap.add_argument("--layers", type=int, default=None,
+                    help="copper layer count the board has; mismatch is an error")
+    ap.add_argument("--slots", type=int, default=None,
+                    help="routed plated slots the design has; mismatch is an error")
     args = ap.parse_args(argv)
 
     root = args.directory
@@ -806,7 +833,7 @@ def main(argv=None):
         sys.stderr.write("error: not a directory: %s\n" % root)
         return 2
 
-    result = analyze(root, args.mask_threshold, args.neighbour)
+    result = analyze(root, args.mask_threshold, args.neighbour, args.layers, args.slots)
 
     if args.output:
         with open(args.output, "w") as fh:

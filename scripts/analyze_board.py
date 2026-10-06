@@ -280,6 +280,19 @@ def analyze(brd_path):
         f"inner plane polygons on layer(s) {sorted(plane_layers) or 'none'}.",
         "")
 
+    # ---- copper to board edge -------------------------------------------
+    EDGE_CLEARANCE_MM = 0.4
+    if W and H:
+        edge_hits = copper_to_edge(root, ox, oy, W, H, EDGE_CLEARANCE_MM)
+        if edge_hits:
+            worst = ", ".join(f"{what} {d:+.2f}mm" for d, what in edge_hits[:6])
+            add("WARN", "copper.edge",
+                f"{len(edge_hits)} copper object(s) closer than {EDGE_CLEARANCE_MM} mm to the outline bbox: {worst}{' ...' if len(edge_hits) > 6 else ''}.",
+                "Keep wires, vias and pour edges >= 0.4 mm from the board edge (DRU mdCopperDimension); inset pours >= 0.5 mm. "
+                "Non-rectangular outlines are measured against their bounding box, so hits near cutouts need a manual look.")
+        else:
+            add("INFO", "copper.edge", f"All copper >= {EDGE_CLEARANCE_MM} mm from the outline bbox.", "")
+
     # ---- placement: min pad gap + overlaps ------------------------------
     min_gap = 999.0
     min_gap_pair = None
@@ -447,13 +460,16 @@ def analyze(brd_path):
             if (tr[0] >= epr[0] - 0.1 and tr[1] >= epr[1] - 0.1 and
                     tr[2] <= epr[2] + 0.1 and tr[3] <= epr[3] + 0.1):
                 panes += 1
-        # thermal vias = vias from any signal sitting inside the EP footprint
+        # thermal vias = signal vias inside the EP, plus the footprint's own drilled pads there
+        # (vendor footprints often model thermal vias as package <pad>s)
         tvias = 0
         for s in root.iter("signal"):
             for v in s.findall("via"):
                 if epr[0] <= float(v.get("x")) <= epr[2] and epr[1] <= float(v.get("y")) <= epr[3]:
                     tvias += 1
-        ep_parts.append((nm, m["pkg"], ew, eh, panes, tvias))
+        tpads = sum(1 for (px, py) in element_drilled_pads(root, nm, m["pkg"])
+                    if epr[0] <= px <= epr[2] and epr[1] <= py <= epr[3])
+        ep_parts.append((nm, m["pkg"], ew, eh, panes, tvias + tpads))
     if ep_parts:
         for nm, pkg, ew, eh, panes, tvias in ep_parts:
             add("INFO", "thermal.ep",
@@ -482,6 +498,57 @@ def analyze(brd_path):
     for f in findings:
         counts[f["severity"]] = counts.get(f["severity"], 0) + 1
     return {"summary": summary, "counts": counts, "findings": findings}
+
+
+def element_drilled_pads(root, elem_name, pkg_name):
+    """Board coordinates of an element's drilled <pad>s (its package found by name)."""
+    el = next((e for e in root.iter("element") if e.get("name") == elem_name), None)
+    pk = next((p for p in root.iter("package") if p.get("name") == pkg_name), None)
+    if el is None or pk is None:
+        return []
+    rot = el.get("rot") or "R0"
+    mir = rot.startswith("M")
+    ang = math.radians(float(rot.lstrip("MSR") or 0))
+    ex, ey = float(el.get("x")), float(el.get("y"))
+    out = []
+    for pd in pk.findall("pad"):
+        px, py = float(pd.get("x")), float(pd.get("y"))
+        if mir:
+            px = -px
+        rx = px * math.cos(ang) - py * math.sin(ang)
+        ry = px * math.sin(ang) + py * math.cos(ang)
+        out.append((ex + rx, ey + ry))
+    return out
+
+
+def copper_to_edge(root, ox, oy, W, H, limit):
+    """Copper objects (signal wires, vias, polygon vertices) closer than `limit` to the outline bbox."""
+    hits = []
+    def edge_dist(x, y):
+        return min(x - ox, ox + W - x, y - oy, oy + H - y)
+    for s in root.iter("signal"):
+        sn = s.get("name")
+        for w in s.findall("wire"):
+            if w.get("layer") not in COPPER_LAYERS:
+                continue
+            half = float(w.get("width") or 0) / 2
+            for x, y in ((float(w.get("x1")), float(w.get("y1"))), (float(w.get("x2")), float(w.get("y2")))):
+                d = edge_dist(x, y) - half
+                if d < limit:
+                    hits.append((round(d, 3), f"{sn} wire L{w.get('layer')} ({x:.2f},{y:.2f})"))
+        for v in s.findall("via"):
+            dia = float(v.get("diameter") or 0) or float(v.get("drill")) + 0.3
+            d = edge_dist(float(v.get("x")), float(v.get("y"))) - dia / 2
+            if d < limit:
+                hits.append((round(d, 3), f"{sn} via ({float(v.get('x')):.2f},{float(v.get('y')):.2f})"))
+        for pg in s.findall("polygon"):
+            if pg.get("layer") not in COPPER_LAYERS:
+                continue
+            half = float(pg.get("width") or 0) / 2
+            worst = min((edge_dist(float(vt.get("x")), float(vt.get("y"))) - half for vt in pg.findall("vertex")), default=limit)
+            if worst < limit:
+                hits.append((round(worst, 3), f"{sn} polygon L{pg.get('layer')}"))
+    return sorted(hits)
 
 
 def ipc_amps(width_mm):
