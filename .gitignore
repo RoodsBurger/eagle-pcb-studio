@@ -5,3 +5,8 @@ __pycache__/
 *.bak
 *.brd.bak
 *.sch.bak
+
+# eval fixtures (private boards) and raw run workspaces
+evals/fixtures/*
+!evals/fixtures/README.md
+evals/workspace/
