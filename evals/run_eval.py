@@ -14,8 +14,11 @@ installed SKILL.md by path and follows it — the same method skill-creator's wi
 Layout (skill-creator compatible):  <workspace>/eval-<id>/<config>/run-<n>/{transcript.jsonl, transcript.md,
 result.json, timing.json, inputs/, outputs/}  plus <workspace>/eval-<id>/eval_metadata.json
 
+The workspace defaults to <tmp>/eagle-pcb-studio-workspace/<date> and is refused inside the repository: a run
+explores its parent directories, and a run without the skill that finds SKILL.md there is no baseline.
+
 Usage
-  python3 evals/run_eval.py --config no_skill --eval 1 2 3 --fixtures evals/fixtures --workspace evals/workspace/<date>
+  python3 evals/run_eval.py --config no_skill --eval 1 2 3 --fixtures evals/fixtures --workspace /tmp/eagle-pcb-studio-workspace/<date>
   python3 evals/run_eval.py --config with_skill strong_prompt no_skill --eval 1 2 3 --parallel 3
 """
 import argparse
@@ -25,6 +28,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
@@ -238,7 +242,8 @@ def main(argv=None):
     ap.add_argument("--eval", nargs="+", type=int, required=True, help="eval ids from evals.json")
     ap.add_argument("--runs", type=int, default=1, help="runs per eval and configuration")
     ap.add_argument("--fixtures", default=os.path.join(HERE, "fixtures"))
-    ap.add_argument("--workspace", default=os.path.join(HERE, "workspace", datetime.now().strftime("%Y-%m-%d")))
+    ap.add_argument("--workspace", default=os.path.join(tempfile.gettempdir(), "eagle-pcb-studio-workspace", datetime.now().strftime("%Y-%m-%d")),
+                    help="must be OUTSIDE this repository: a run can walk up its parent directories, and a no-skill run that finds SKILL.md is void")
     ap.add_argument("--config-dir", help="isolated CLAUDE_CONFIG_DIR (default <workspace>/.claude-config)")
     ap.add_argument("--model", default=None, help="model id passed to claude (default: the CLI default)")
     ap.add_argument("--max-turns", type=int, default=200)
@@ -250,6 +255,13 @@ def main(argv=None):
     evals = {e["id"]: e for e in load_evals()["evals"]}
     # Every run uses its own cwd, so all paths handed to subprocesses must be absolute.
     a.workspace, a.fixtures = os.path.abspath(a.workspace), os.path.abspath(a.fixtures)
+    if a.workspace.startswith(REPO + os.sep):
+        sys.exit(f"workspace {a.workspace} is inside the repository; runs explore parent directories and would find the skill")
+    d = a.workspace
+    while d != os.path.dirname(d):
+        d = os.path.dirname(d)
+        if os.path.exists(os.path.join(d, "CLAUDE.md")) or os.path.isdir(os.path.join(d, ".claude")):
+            print(f"warning: {d} holds CLAUDE.md or .claude/, which every run will load", file=sys.stderr)
     os.makedirs(a.workspace, exist_ok=True)
     config_dir = ensure_config_dir(os.path.abspath(a.config_dir or os.path.join(a.workspace, ".claude-config")))
     jobs = []

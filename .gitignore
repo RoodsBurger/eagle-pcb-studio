@@ -9,4 +9,3 @@ __pycache__/
 # eval fixtures (private boards) and raw run workspaces
 evals/fixtures/*
 !evals/fixtures/README.md
-evals/workspace/
