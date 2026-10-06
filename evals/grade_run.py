@@ -93,6 +93,38 @@ def sch_nets(sch):
     return {n.get("name") for n in root.iter("net")}
 
 
+def expected_contactrefs(sch):
+    """{(net, part, pad)} the schematic implies: pinrefs resolved through each part's device connects (a pin may
+    map to several pads), keeping only pads that exist in the device's package — a connect naming a pad the
+    package lacks cannot become a contactref."""
+    root = ET.parse(sch).getroot()
+    connects, pkg_pads = {}, {}
+    for lib in root.iter("library"):
+        for pk in lib.iter("package"):
+            pkg_pads[(lib.get("name"), pk.get("name"))] = {e.get("name") for e in list(pk.iter("smd")) + list(pk.iter("pad"))}
+        for ds in lib.iter("deviceset"):
+            for dev in ds.iter("device"):
+                m, have = {}, pkg_pads.get((lib.get("name"), dev.get("package")), set())
+                for c in dev.iter("connect"):
+                    for pad in c.get("pad", "").split():
+                        if pad in have:
+                            m.setdefault((c.get("gate"), c.get("pin")), set()).add(pad)
+                connects[(lib.get("name"), ds.get("name"), dev.get("name"))] = m
+    parts = {p.get("name"): (p.get("library"), p.get("deviceset"), p.get("device")) for p in root.iter("part")}
+    out = set()
+    for net in root.iter("net"):
+        for pr in net.iter("pinref"):
+            m = connects.get(parts.get(pr.get("part")), {})
+            for pad in m.get((pr.get("gate"), pr.get("pin")), ()):
+                out.add((net.get("name"), pr.get("part"), pad))
+    return out
+
+
+def board_contactrefs(brd):
+    root = ET.parse(brd).getroot()
+    return {(s.get("name"), c.get("element"), c.get("pad")) for s in root.iter("signal") for c in s.iter("contactref")}
+
+
 def board_outline_and_elements(brd):
     """Board outline bbox (layer 20 wires) and element positions, in mm."""
     root = ET.parse(brd).getroot()
@@ -237,9 +269,14 @@ def check_eval3(run_dir, meta):
                                     f"analyze_board.py overlaps: {overlaps}; element origins outside outline {outline}: {outside or 'none'}")
             nets, sigs = sch_nets(sch), brd_signals(brd)
             missing_n = sorted(nets - set(sigs))
-            empty = sorted(n for n, k in sigs.items() if k == 0 and n in nets)
-            res[A[2]] = (not missing_n and not empty, f"{len(sigs)} signals for {len(nets)} schematic nets (missing: {missing_n or 'none'}; "
-                                                      f"signals without contactrefs: {empty or 'none'}); contactrefs total {sum(sigs.values())}")
+            want, have = expected_contactrefs(sch), board_contactrefs(brd)
+            lost, extra = sorted(want - have), sorted(have - want)
+            def short(lst):
+                return ", ".join(f"{n}:{e}.{p}" for n, e, p in lst[:6]) + (f" … (+{len(lst) - 6})" if len(lst) > 6 else "")
+            res[A[2]] = (not missing_n and not lost and not extra,
+                         f"{len(sigs)} signals for {len(nets)} schematic nets (missing: {missing_n or 'none'}); contactrefs {len(have)} on the board vs "
+                         f"{len(want)} implied by the schematic's device connects (pads that exist in the package); missing: {short(lost) or 'none'}; "
+                         f"unexpected or dangling (pad absent from the package): {short(extra) or 'none'}")
             c = consistency(sch, brd)
             res[A[3]] = (c["pass"], f"check_consistency.py inputs/design.sch {name} -> {'PASS' if c['pass'] else 'FAIL'}"
                          + (f"; inconsistent: {c['inconsistent']}" if c["inconsistent"] and c["inconsistent"] != "NONE" else ""))
