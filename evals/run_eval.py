@@ -81,7 +81,22 @@ def ensure_config_dir(path):
     settings = os.path.join(path, "settings.json")
     if not os.path.exists(settings):
         json.dump({"permissions": {"defaultMode": "bypassPermissions"}}, open(settings, "w"))
+    warmup(path)
     return path
+
+
+def warmup(config_dir):
+    """One sequential call before any parallel run: concurrent first launches of a fresh config dir race on the
+    credential migration and report "Not logged in"."""
+    env = dict(os.environ, CLAUDE_CONFIG_DIR=config_dir)
+    env.pop("CLAUDECODE", None)
+    p = subprocess.run(["claude", "-p", "Reply with exactly OK.", "--max-turns", "1", "--output-format", "json",
+                        "--no-session-persistence", "--disable-slash-commands", "--strict-mcp-config"],
+                       capture_output=True, text=True, env=env, timeout=180)
+    line = next((l for l in p.stdout.splitlines() if l.startswith("{")), "{}")
+    res = json.loads(line) if line else {}
+    if res.get("is_error") or "OK" not in str(res.get("result", "")):
+        sys.exit(f"warm-up call failed in {config_dir}: {res.get('result', p.stderr[:300])}")
 
 
 def install_skill(run_dir):
@@ -248,7 +263,8 @@ def main(argv=None):
         for config in a.config:
             for n in range(1, a.runs + 1):
                 run_dir = os.path.join(eval_dir, config, f"run-{n}")
-                if os.path.exists(os.path.join(run_dir, "timing.json")):
+                tp = os.path.join(run_dir, "timing.json")
+                if os.path.exists(tp) and json.load(open(tp)).get("status") == "ok":
                     print(f"skip {run_dir} (done)")
                     continue
                 if os.path.exists(run_dir):
@@ -258,6 +274,7 @@ def main(argv=None):
 
     def work(job):
         ev, config, run_dir = job
+        time.sleep(5 * (jobs.index(job) % max(1, a.parallel)))
         print(f"start eval-{ev['id']} {config} -> {run_dir}", flush=True)
         t = run_one(ev, config, run_dir, a.fixtures, config_dir, a.model, a.max_turns, a.budget, a.timeout)
         print(f"done  eval-{ev['id']} {config}: {t['status']} {t['total_duration_seconds']}s "
