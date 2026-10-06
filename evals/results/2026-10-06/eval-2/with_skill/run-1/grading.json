@@ -1,0 +1,59 @@
+{
+  "eval_id": 2,
+  "eval_name": "placement-min-area",
+  "configuration": "with_skill",
+  "expectations": [
+    {
+      "text": "Places all 8 parts (U1, U2, C1-C4, L1, J1, J2).",
+      "passed": true,
+      "evidence": "outputs/esp32s3_30x30_placements.json places ['C1', 'C2', 'C3', 'C4', 'J1', 'J2', 'L1', 'U1', 'U2']",
+      "verified_by": "script"
+    },
+    {
+      "text": "No two parts overlap.",
+      "passed": true,
+      "evidence": "rectangle overlap test on 9 parts: none",
+      "verified_by": "script"
+    },
+    {
+      "text": "All parts fit within the 30 x 30 mm board.",
+      "passed": true,
+      "evidence": "all rotated bboxes within 30 x 30 mm: True; bboxes: C1=(5.3,16.8)-(5.8,17.8); C2=(3.8,16.8)-(4.3,17.8); C3=(5.3,14.8)-(5.8,15.8); C4=(9.3,6.8)-(9.8,7.8); J1=(1.3,0.8)-(10.3,4.8); J2=(0.8,18.8)-(3.3,28.8); L1=(4.8,8.8)-(9.8,13.8); U1=(10.8,3.7)-(28.8,29.2); U2=(6.8,14.8)-(9.8,17.8)",
+      "verified_by": "script"
+    },
+    {
+      "text": "J1 and J2 are placed on a board edge (constraint honored).",
+      "passed": true,
+      "evidence": "edge test (bbox within 1.3 mm of an outline edge): {'J1': True, 'J2': True}",
+      "verified_by": "script"
+    },
+    {
+      "text": "Produces a valid SVG preview (parses, contains the board outline + parts).",
+      "passed": true,
+      "evidence": "outputs/esp32s3_30x30_placement.svg parses: 30 shapes, part labels found: ['C1', 'C2', 'C3', 'C4', 'J1', 'J2', 'L1', 'U1', 'U2']",
+      "verified_by": "script"
+    }
+  ],
+  "summary": {
+    "passed": 5,
+    "failed": 0,
+    "total": 5,
+    "pass_rate": 1.0
+  },
+  "execution_metrics": {
+    "total_tool_calls": 14,
+    "errors_encountered": 3,
+    "output_chars": 30869,
+    "status": "ok"
+  },
+  "timing": {
+    "executor_duration_seconds": 241.2,
+    "grader_duration_seconds": 0.0,
+    "total_duration_seconds": 241.2
+  },
+  "grader": {
+    "models": [],
+    "cost_usd": null,
+    "notes": []
+  }
+}

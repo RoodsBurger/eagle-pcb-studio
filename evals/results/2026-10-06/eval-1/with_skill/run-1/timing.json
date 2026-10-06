@@ -1,0 +1,34 @@
+{
+  "status": "ok",
+  "total_duration_seconds": 182.6,
+  "api_duration_seconds": 179.1,
+  "num_turns": 13,
+  "total_tool_calls": 12,
+  "tool_errors": 3,
+  "total_tokens": 10652,
+  "input_tokens": 386,
+  "cache_creation_input_tokens": 49237,
+  "cache_read_input_tokens": 581321,
+  "total_cost_usd": 1.6665302499999999,
+  "models": [
+    "claude-fable-5-1"
+  ],
+  "command": [
+    "claude",
+    "-p",
+    "<prompt>",
+    "--output-format",
+    "stream-json",
+    "--verbose",
+    "--dangerously-skip-permissions",
+    "--no-session-persistence",
+    "--disable-slash-commands",
+    "--strict-mcp-config",
+    "--max-turns",
+    "200",
+    "--max-budget-usd",
+    "40.0",
+    "--model",
+    "claude-fable-5-1"
+  ]
+}

@@ -1,0 +1,3 @@
+I have a Fusion/EAGLE schematic at <workspace>/eval-3/no_skill/run-1/inputs/design.sch and no board yet. Make me a board file I can open in Fusion and start routing, and show me a picture of the placement.
+
+Write every file you create or modify to ./outputs/ (keep ./inputs/ unchanged) and finish with a summary of what you found and did.

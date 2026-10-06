@@ -12,8 +12,9 @@ description: >-
   this ready to fab/order"; fix schematic↔board "inconsistent footprints" ERC errors;
   measure or fix thin solder-mask dams/slivers; convert holes to plated slots; verify
   ground/power planes are poured; size power traces (IPC-2221); render a board or a
-  placement to SVG; or build a PCBWay/JLCPCB assembly BOM. Reach for it for ANY
-  EAGLE/Fusion hardware-design question even if the skill isn't named. Do NOT use it
+  placement to SVG; build a PCBWay/JLCPCB assembly BOM; or drive Fusion 360 itself over
+  its MCP add-in (upload a design, read ERC/DRC back, export, screenshot, 3D interference).
+  Reach for it for ANY EAGLE/Fusion hardware-design question even if the skill isn't named. Do NOT use it
   for KiCad projects (.kicad_pcb/.kicad_sch — this skill is EAGLE/Fusion only), Altium
   or other non-EAGLE EDA tools, general circuit-theory or firmware questions,
   spreadsheet or image tasks, or pure component sourcing.
@@ -26,6 +27,7 @@ This skill does two jobs for **EAGLE 9.x / Autodesk Fusion Electronics** designs
 
 1. **Generate** — turn an existing schematic (`.sch`) into a **placed board** (`.brd`) with optimized component placement, resolving the footprint libraries it needs and previewing the result.
 2. **Review** — check a design and its Gerber export for manufacturing: schematic ERC, board DFM, solder-mask dams, plane pours, trace sizing, sch↔board consistency, and a fab-ready BOM.
+3. **Round-trip through Fusion 360** — when Fusion is running with its MCP add-in, upload the generated pair as a Fusion electronics design, read Fusion's own ERC/DRC back, export what Fusion holds for the local analyzers, screenshot it, and check 3D interference on a pushed 3D PCB (`scripts/fusion_mcp.py`).
 
 > **Scope check.** EAGLE/Fusion store designs as XML (`.brd`/`.sch` with a `<!DOCTYPE eagle ...>`) — *not* KiCad's `.kicad_pcb`. This skill is for EAGLE/Fusion only and does not handle KiCad-native projects. If the user has `.brd`/`.sch`/`.lbr` or Fusion-named Gerbers, this is the right skill.
 
@@ -50,6 +52,7 @@ Run these directly; don't reimplement what they already do. Quote `<...>` paths.
 | `check_consistency.py` | `python3 scripts/check_consistency.py "<sch>" "<brd>" [--sync]` | Verify sch↔board footprints are identical (source of the **"inconsistent footprints"** ERC error) + netlist diff. `--sync` repairs the `.sch` from the `.brd`. |
 | `render_svg.py` | `python3 scripts/render_svg.py "<board.brd>" -o out.svg` — or `--spec spec.json --placements pl.json` | Render a **`.brd`** or a **placement** (spec + placements) to SVG for a fast visual check. |
 | `make_bom.py` | `python3 scripts/make_bom.py "<bom.csv>" -o PCBWay-BOM.xlsx` | Convert a BOM CSV into a **PCBWay-format assembly `.xlsx`** (`DNS` for do-not-populate, LCSC#). |
+| `fusion_mcp.py` | `python3 scripts/fusion_mcp.py tools \| upload-pair "<sch>" "<brd>" --folder <id> \| read-design --sch <id> --brd <id> \| export <id> out.brd \| interference <id> \| script file.py` | **Drive Fusion 360 over its MCP add-in** (`FUSION_MCP_URL`, default `127.0.0.1:52435`): upload a design, read parts/nets/ERC/DRC back, export EAGLE XML, screenshot, run Fusion API Python, 3D interference. Needs Fusion running; everything else in this skill works without it. |
 
 ## References (read on demand)
 
@@ -60,6 +63,7 @@ Run these directly; don't reimplement what they already do. Quote `<...>` paths.
 | `references/placement-methodology.md` | Tuning placement — HPWL, BLF area minimization, group clustering, obstacle padding, edge locking. |
 | `references/generation-pattern.md` | Writing a board from a code spec (no `.sch`) — PKG/DEVSETS/PARTS/nets, `parse_vendor()` verbatim `.lbr` footprints, keeping sch/brd byte-identical. |
 | `references/manufacturing-prep.md` | Prepping for fab — solder-mask dam fixes (mask-defined vs expose/gang), plated-slot idiom, footprint sync, PCBWay/JLCPCB BOM + order params. |
+| `references/fusion-mcp.md` | Driving Fusion 360 over MCP — connecting to the add-in, the three MCP tools and their arguments, the upload → read-back → export round-trip, and the Fusion-side gotchas (event-loop pumping, new lineage per upload, never re-upload an export). |
 
 ## Workflow A — Schematic → placed board
 
@@ -84,10 +88,24 @@ Use for "check my board", "is this ready to order", "review before fab", DFM, or
 6. **BOM** — `make_bom.py "<csv>" -o PCBWay-BOM.xlsx`.
 7. **Order params live in the fab's web form, not the Gerbers**: layer count, thickness, copper weight, **surface finish (ENIG for fine pitch)**, mask/silk color, single-board vs panel. Say so explicitly.
 
+## Workflow C — Round-trip through Fusion 360 (MCP)
+
+Use when Fusion 360 is open with its MCP add-in and the user wants the design *in Fusion*: "upload this to Fusion", "what does Fusion's DRC say", "export the board Fusion has", "check the 3D PCB for collisions". Check first: `python3 scripts/fusion_mcp.py tools` must list the add-in's tools (else `find-port` and set `FUSION_MCP_URL`; if Fusion isn't running, say so and stay file-based).
+
+1. **Upload** — `fusion_mcp.py upload-pair "<sch>" "<brd>" --folder <folder-id>` (same base name for both; `folder <id>` lists the new `fsch`/`fbrd` ids — every upload is a new lineage).
+2. **Read back** — `fusion_mcp.py read-design --sch <fsch-id> --brd <fbrd-id> --png board.png`: parts, nets, elements, signals, layers, and Fusion's ERC/DRC errors. Compare counts with the local files; diff DRC `signature`s against the ones already approved.
+3. **Export for the analyzers** — `fusion_mcp.py export <fbrd-id> fusion-export.brd`, then `check_consistency.py` / `analyze_board.py` on the export. **Never upload an export back** (Fusion drops part of the 3D package data on export).
+4. **3D check** — after the user pushes a 3D PCB, `fusion_mcp.py interference <f3d-id>` lists part/part and part/board collisions by occurrence with volume and bounding box.
+5. Anything else inside Fusion: `fusion_mcp.py script file.py [--read-only]` runs Fusion API Python (`run(context)`); wait for `active-command` = `SelectCommand` first. Details and gotchas: `references/fusion-mcp.md`.
+
 ## Gotchas worth internalizing (the *why*)
 
 - **Fusion Gerbers have no X2 attributes** and use names like `copper_top_l1.gbr` / `profile.gbr` / `drill_1_16.xln`, so layer identification must key off the Fusion naming — which `analyze_gerbers.py` does first (then X2 attributes, then common extensions).
 - **A solder-mask dam can't exceed the copper gap.** On a 0.5–0.65mm-pitch part the pads may be ~0.2mm apart, so a ≥0.22mm dam is impossible without the mask encroaching onto the pads (mask-defined) or you *expose/gang* the area (standard for fine pitch). Don't promise a wider dam than the geometry allows.
-- **Plated slots, the EAGLE way:** a round pad **plus a single `layer-46` (Milling) wire through it, width = drill diameter** — *not* a closed milling outline (which exports as a round drill **plus** a separate cutout that fabs flag as "slot and hole overlapped"). Native Excellon can't emit slots, so a default CAM job may still leave the round drill — tell the fab "round drill + route = same plated slot."
+- **Plated slots:** in Fusion use a **native slot pad** — `<pad drill="0.6" diameter="1" slotLength="1.7" shape="slot">` — which the CAM writes into the Excellon file as routed `G00`/`M15`/`G01`/`M16` blocks; `grep -c M15 drill_*.xln` must equal the slot count (`analyze_gerbers.py --slots N`). The EAGLE-9 fallback (round pad + one layer-46 wire at drill width, never a closed outline) needs a fab note, because milling-layer drawings never reach the drill file.
+- **Design rules:** `msDrill` is the *minimum drill* (set it just under the smallest drill, 0.19 for 0.2 mm, or Fusion's "Drill Size" check flags every hole), `mdDrill` is *hole-to-hole clearance*, `mdCopperDimension` is copper-to-edge/unplated-hole. The `.dru` description prose goes stale — read the values.
+- **CAM job = layer count.** A 2-layer CAM job on a 4-layer board drops the inner planes silently; check the inner copper Gerbers exist (`analyze_gerbers.py --layers 4`).
+- **Coordinates are text.** A stub connects to its via only when both carry identical coordinate text (0.0004 mm off = open in Fusion); emit 3 decimals and round before comparing. Two stubs ending at one point inside a pad make a junction, not a pad connection.
+- **A schematic can disagree with its own library.** A device `<connect>` may name pads the embedded `<package>` lacks (the library was updated, the schematic copy was not); `analyze_schematic.py` reports it (`lib.connect_pad_missing`) and `sch_to_board.py` drops those pads with a warning instead of emitting dangling contactrefs.
 - **Footprint geometry flows `.lbr` → generator → `.sch`/`.brd`.** To change a footprint, edit the `.lbr` and regenerate; the routed `.sch`/`.brd` embed copies that must stay byte-identical or ERC complains. A saved `.sch` already embeds its libraries — `find_libraries.py` reports embedded vs needs-the-`.lbr`.
 - **Planes "not pouring" in the Fusion editor** is usually a display/ratsnest quirk — confirm against the actual Gerber (`analyze_gerbers.py` poured-region count), not the on-screen preview.

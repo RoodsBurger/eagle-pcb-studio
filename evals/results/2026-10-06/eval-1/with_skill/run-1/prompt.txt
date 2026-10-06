@@ -1,0 +1,5 @@
+A Claude skill is installed at .claude/skills/eagle-pcb-studio/ — read its SKILL.md first and follow it for this task.
+
+Autodesk Fusion's ERC keeps throwing 'Part U_DRV has inconsistent footprints in schematic and board' (and the same for J_USB) and won't let me proceed. My EAGLE schematic is <workspace>/eval-1/with_skill/run-1/inputs/design.sch and the board is <workspace>/eval-1/with_skill/run-1/inputs/design.brd. Pin down exactly what's inconsistent between the schematic and the board for those parts, and fix it so the consistency errors clear. I've been doing my routing in the board, so if they disagree, the board is the correct version.
+
+Write every file you create or modify to ./outputs/ (keep ./inputs/ unchanged) and finish with a summary of what you found and did.

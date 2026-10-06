@@ -386,15 +386,27 @@ cares about (values from `your-board.brd`):
 | param | value | meaning |
 |-------|-------|---------|
 | `layerSetup` | `(1+2*15+16)` | copper stack: signal **1**, inner **2** & **15**, signal **16** → 4-layer |
-| `mdDrill` | `0.3mm` | min drill diameter |
-| `msDrill` | `0.25mm` | min annular-ring / drill spacing (signal) |
+| `msDrill` | `0.19mm` | **minimum drill diameter** — set it just under the smallest drill you use (0.19 for 0.2 mm thermal-via pads) or Fusion's "Drill Size" check flags every hole that equals the limit |
+| `mdDrill` | `0.3mm` | **drill-to-drill (hole-to-hole) clearance** |
+| `mdCopperDimension` | `0.2mm` | copper to board edge / unplated hole (PCBWay: 16 mil for wires) |
 | `msWidth` | `6mil` | min track width |
-| `mdWireWire`/`mdPadPad`/… | `0.152mm` | copper-to-copper clearances |
+| `mdWireWire`/`mdPadPad`/… | `0.152mm` | copper-to-copper clearances (6 mil) |
 | `mdSmdPad`/`mdSmdSmd` | `6mil` | SMD clearances |
+| `mtCopper` | `0.035mm` | copper thickness per layer (1 oz) |
+| `mtIsolate` | `1.5mm 0.15mm 0.2mm …` | dielectric thicknesses; their sum is the `.gbrjob` BoardThickness |
+| `rlMinPad*` / `rlMaxPad*` | `10/20mil` | pad annular-ring restring per layer |
+| `rlMinVia*` / `rv*` | `6mil` / `0.25` | via restring and ring ratio |
 | `mlMinStopFrame` / `mlMaxStopFrame` | `4mil` | **solder-mask expansion** (mask opening = pad + this on each side) |
 | `mlMinCreamFrame` / `mlMaxCreamFrame` | `0mil` | solder-paste (cream) shrink/expand |
 | `mlViaStopLimit` | `25mil` | vias ≤ this get tented (no mask opening) |
-| `rlMinPad*` / `rlMaxPad*` | `10/20mil` | pad annular-ring restring per layer |
+| `slThermalIsolate` | `10mil` | thermal-spoke isolation |
+| `slThermalsForVias` | `0` | 0 = vias join pours solidly (no spokes) |
+| `mnLayersViaInSmd` | `2` | via-in-SMD-pad allowance; EAGLE DRC rejects vias touching SMD pads |
+| `checkWireStubs` | `1` | DRC flags dangling wire stubs |
+
+The `description` text of a `.dru` is free prose and goes stale ("8 mil clearance" next to
+0.152 mm values) — read the parameters. A loadable `.dru` is just the `<designrules>` parameters
+dumped as `name = value` lines, so the board file is the source of truth.
 
 `layerSetup` syntax: copper layer numbers in stack order; `*` repeats the previous
 core. `(1+2*15+16)` = Top, [inner 2, inner 15], Bottom. The mask-frame params drive

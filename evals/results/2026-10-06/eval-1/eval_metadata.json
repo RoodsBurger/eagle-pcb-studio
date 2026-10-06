@@ -1,0 +1,17 @@
+{
+  "eval_id": 1,
+  "eval_name": "erc-inconsistent-footprints",
+  "prompt": "Autodesk Fusion's ERC keeps throwing 'Part U_DRV has inconsistent footprints in schematic and board' (and the same for J_USB) and won't let me proceed. My EAGLE schematic is <SCH> and the board is <BRD>. Pin down exactly what's inconsistent between the schematic and the board for those parts, and fix it so the consistency errors clear. I've been doing my routing in the board, so if they disagree, the board is the correct version.",
+  "plain_prompt": "Fusion's ERC says my schematic and board are inconsistent and won't let me move on. Schematic: <SCH>, board: <BRD>. The board is the one I've been routing in, so treat the board as correct. Find what's inconsistent and fix it.",
+  "assertions": [
+    "Correctly identifies U_DRV (SOP65P640X120-29N) and J_USB (HRO_TYPE-C-31-M-12) as the inconsistent footprints.",
+    "Explains the inconsistency is in package geometry (solder-mask / slot) between sch and brd.",
+    "Produces a corrected schematic that is consistent with the board (check_consistency PASS on the output).",
+    "Corrected .sch remains valid EAGLE XML with DOCTYPE intact and parses.",
+    "Does not alter the netlist \u2014 parts (71) and nets (57) still match the board."
+  ],
+  "files": [
+    "fixtures/design.sch",
+    "fixtures/design.brd"
+  ]
+}

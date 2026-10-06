@@ -1,0 +1,65 @@
+{
+  "eval_id": 1,
+  "eval_name": "erc-inconsistent-footprints",
+  "configuration": "strong_prompt",
+  "expectations": [
+    {
+      "text": "Correctly identifies U_DRV (SOP65P640X120-29N) and J_USB (HRO_TYPE-C-31-M-12) as the inconsistent footprints.",
+      "passed": true,
+      "evidence": "Tool-verified package-by-package comparison across all 33 shared packages printed exactly two mismatches: \"[DRV8313PWPR] SOP65P640X120-29N: DIFFERENT\" and \"[TYPE-C-31-M-12] HRO_TYPE-C-31-M-12: DIFFERENT\", all others \"OK\". Final summary and CHANGES.md name both: \"J_USB, package HRO_TYPE-C-31-M-12\" and \"U_DRV, package SOP65P640X120-29N\", and note the part/element declarations (library, URN, package name, package3d_urn) matched so the mismatch was inside the embedded package definitions.",
+      "verified_by": "grader-model"
+    },
+    {
+      "text": "Explains the inconsistency is in package geometry (solder-mask / slot) between sch and brd.",
+      "passed": true,
+      "evidence": "U_DRV: \"Only the 31 copper and stop-mask polygons differed. The schematic had rounded-corner outlines using curved vertices, the board has rectangular solid-pour outlines\" (CHANGES.md: \"31 polygons (layer 1 copper + layer 29 stop mask)\"), backed by the diff showing `<polygon width=\"0.01\" layer=\"29\">` with curve vertices vs `pour=\"solid\"` rectangles. J_USB: schematic had 4 round shield pads vs board's 36 including \"32 stacked pads named S1B through S4I that form the slotted shield holes\"; also \"Mask rectangles, layer 46 slot outlines and copper polygons differed\" with a table row \"slot outline (layer 46 Milling): 24 zero-width wires vs 4 wires, width 0.6\" and \"mask rectangles (layer 29): 12, wider vs 12, narrower\".",
+      "verified_by": "grader-model"
+    },
+    {
+      "text": "Produces a corrected schematic that is consistent with the board (check_consistency PASS on the output).",
+      "passed": true,
+      "evidence": "check_consistency.py outputs/design.sch inputs/design.brd -> PASS",
+      "verified_by": "script"
+    },
+    {
+      "text": "Corrected .sch remains valid EAGLE XML with DOCTYPE intact and parses.",
+      "passed": true,
+      "evidence": "outputs/design.sch: parses and keeps <!DOCTYPE eagle SYSTEM \"eagle.dtd\">",
+      "verified_by": "script"
+    },
+    {
+      "text": "Does not alter the netlist \u2014 parts (71) and nets (57) still match the board.",
+      "passed": true,
+      "evidence": "check_consistency.py: PARTS sch=71 brd=71, NETS sch=57 brd=57",
+      "verified_by": "script"
+    }
+  ],
+  "summary": {
+    "passed": 5,
+    "failed": 0,
+    "total": 5,
+    "pass_rate": 1.0
+  },
+  "execution_metrics": {
+    "total_tool_calls": 9,
+    "errors_encountered": 0,
+    "output_chars": 29103,
+    "status": "ok"
+  },
+  "timing": {
+    "executor_duration_seconds": 249.9,
+    "grader_duration_seconds": 26.9,
+    "total_duration_seconds": 249.9
+  },
+  "grader": {
+    "models": [
+      "claude-fable-5-1"
+    ],
+    "cost_usd": 0.57827225,
+    "notes": [
+      "The agent's diagnosis is grounded in actual tool output (canonicalized XML set-diff of package children), not just assertion; the pad-level diff (S1..S4 round 0.9 vs long 1.0 R90, 32 extra S*B..S*I pads only in board) is quoted directly from the tool result.",
+      "The agent additionally found the schematic's own device <connects> referenced 32 pads absent from its own package (fixed to 0 dangling after the splice), which is a stronger piece of evidence that the schematic copy was the stale one, consistent with the user's 'board is correct' instruction.",
+      "CHANGES.md appears truncated in the listing at ~3113 bytes (ends mid-sentence 'devicesets, connect'); this is likely a display cutoff, but a reviewer may want to confirm the file is complete on disk."
+    ]
+  }
+}

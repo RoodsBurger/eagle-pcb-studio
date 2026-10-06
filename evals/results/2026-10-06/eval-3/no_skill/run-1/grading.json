@@ -1,0 +1,59 @@
+{
+  "eval_id": 3,
+  "eval_name": "sch-to-board",
+  "configuration": "no_skill",
+  "expectations": [
+    {
+      "text": "Produces a valid EAGLE .brd that parses and retains the <!DOCTYPE eagle> declaration.",
+      "passed": true,
+      "evidence": "outputs/design.brd: parses and keeps <!DOCTYPE eagle SYSTEM \"eagle.dtd\">",
+      "verified_by": "script"
+    },
+    {
+      "text": "Every schematic part is placed as an <element> with no overlapping footprints, all within the board outline.",
+      "passed": true,
+      "evidence": "71 elements for 71 schematic parts (missing: none); analyze_board.py overlaps: 0; element origins outside outline (0.0, 0.0, 100.0, 60.0): none",
+      "verified_by": "script"
+    },
+    {
+      "text": "Every schematic net appears as a <signal> with the correct contactrefs (unrouted ratsnest).",
+      "passed": true,
+      "evidence": "57 signals for 57 schematic nets (missing: none); contactrefs 252 on the board vs 252 implied by the schematic's device connects (pads that exist in the package); missing: none; unexpected or dangling (pad absent from the package): none",
+      "verified_by": "script"
+    },
+    {
+      "text": "The board's libraries match the schematic (footprints consistent / check_consistency PASS).",
+      "passed": true,
+      "evidence": "check_consistency.py inputs/design.sch outputs/design.brd -> PASS",
+      "verified_by": "script"
+    },
+    {
+      "text": "Produces an SVG preview of the placement.",
+      "passed": true,
+      "evidence": "outputs/placement.svg parses with 929 shapes",
+      "verified_by": "script"
+    }
+  ],
+  "summary": {
+    "passed": 5,
+    "failed": 0,
+    "total": 5,
+    "pass_rate": 1.0
+  },
+  "execution_metrics": {
+    "total_tool_calls": 11,
+    "errors_encountered": 2,
+    "output_chars": 29374,
+    "status": "ok"
+  },
+  "timing": {
+    "executor_duration_seconds": 457.0,
+    "grader_duration_seconds": 0.0,
+    "total_duration_seconds": 457.0
+  },
+  "grader": {
+    "models": [],
+    "cost_usd": null,
+    "notes": []
+  }
+}

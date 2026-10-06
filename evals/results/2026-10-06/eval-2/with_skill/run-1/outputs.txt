@@ -1,0 +1,4 @@
+outputs/README.md
+outputs/esp32s3_30x30_placement.svg
+outputs/esp32s3_30x30_placements.json
+outputs/esp32s3_30x30_spec.json

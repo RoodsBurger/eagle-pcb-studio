@@ -1,0 +1,15 @@
+outputs/SUMMARY.md
+outputs/baseline_autosized/board_analysis.txt
+outputs/baseline_autosized/consistency_check.txt
+outputs/baseline_autosized/design_autosized.brd
+outputs/baseline_autosized/design_autosized.svg
+outputs/baseline_autosized/placement_summary.txt
+outputs/board_analysis.txt
+outputs/consistency_check.txt
+outputs/design.brd
+outputs/design_placement.png
+outputs/design_placement.svg
+outputs/find_libraries.txt
+outputs/place_antenna_edge.py
+outputs/placement_summary.txt
+outputs/schematic_erc.txt

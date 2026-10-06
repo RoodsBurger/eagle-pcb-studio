@@ -1,0 +1,65 @@
+{
+  "eval_id": 1,
+  "eval_name": "erc-inconsistent-footprints",
+  "configuration": "no_skill",
+  "expectations": [
+    {
+      "text": "Correctly identifies U_DRV (SOP65P640X120-29N) and J_USB (HRO_TYPE-C-31-M-12) as the inconsistent footprints.",
+      "passed": true,
+      "evidence": "Agent's package comparison printed \"DIFFERS ('DRV8313PWPR', 'SOP65P640X120-29N')\" and \"DIFFERS ('TYPE-C-31-M-12', 'HRO_TYPE-C-31-M-12')\" as the only differing packages; SUMMARY.md names \"package `HRO_TYPE-C-31-M-12` (J_USB)\" and \"package `SOP65P640X120-29N` (U_DRV)\" and both blocks were replaced with the board's versions.",
+      "verified_by": "grader-model"
+    },
+    {
+      "text": "Explains the inconsistency is in package geometry (solder-mask / slot) between sch and brd.",
+      "passed": true,
+      "evidence": "Agent located the mismatch in the embedded library <package> blocks rather than the netlist, and for SOP65P640X120-29N explained the sch copy had \"rounded-corner solder-mask polygons, no `pour` attribute\" (layer 29 polygon vertices shown in the diff). For HRO_TYPE-C-31-M-12 it described the geometry difference as 16 vs 48 pads (missing S1B\u2013S4I shield pads). Slot geometry was not explicitly mentioned.",
+      "verified_by": "grader-model"
+    },
+    {
+      "text": "Produces a corrected schematic that is consistent with the board (check_consistency PASS on the output).",
+      "passed": true,
+      "evidence": "check_consistency.py outputs/design.sch inputs/design.brd -> PASS",
+      "verified_by": "script"
+    },
+    {
+      "text": "Corrected .sch remains valid EAGLE XML with DOCTYPE intact and parses.",
+      "passed": true,
+      "evidence": "outputs/design.sch: parses and keeps <!DOCTYPE eagle SYSTEM \"eagle.dtd\">",
+      "verified_by": "script"
+    },
+    {
+      "text": "Does not alter the netlist \u2014 parts (71) and nets (57) still match the board.",
+      "passed": true,
+      "evidence": "check_consistency.py: PARTS sch=71 brd=71, NETS sch=57 brd=57",
+      "verified_by": "script"
+    }
+  ],
+  "summary": {
+    "passed": 5,
+    "failed": 0,
+    "total": 5,
+    "pass_rate": 1.0
+  },
+  "execution_metrics": {
+    "total_tool_calls": 9,
+    "errors_encountered": 1,
+    "output_chars": 26766,
+    "status": "ok"
+  },
+  "timing": {
+    "executor_duration_seconds": 186.8,
+    "grader_duration_seconds": 24.9,
+    "total_duration_seconds": 186.8
+  },
+  "grader": {
+    "models": [
+      "claude-fable-5-1"
+    ],
+    "cost_usd": 0.55067225,
+    "notes": [
+      "The agent labeled the U_DRV (SOP65P640X120-29N) solder-mask polygon difference as \"cosmetic only\"; if the task intended that solder-mask geometry change as a real inconsistency, the explanation understates it, though the fix (copying the board's block) still corrects it.",
+      "For J_USB the agent framed the difference as pad count (16 vs 48 pads) and never used the word \"slot\"; the assertion's slot example is therefore only implicitly covered by replacing the whole package block.",
+      "The agent also observed value-attribute differences (D_USB, J_USB, Q_CW, Q_WW, U_DRV, U_MCU have value only on the board) but did not change or discuss them in the summary; check_consistency passed regardless."
+    ]
+  }
+}

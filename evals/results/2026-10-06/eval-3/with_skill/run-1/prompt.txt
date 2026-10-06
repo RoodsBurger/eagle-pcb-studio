@@ -1,0 +1,5 @@
+A Claude skill is installed at .claude/skills/eagle-pcb-studio/ — read its SKILL.md first and follow it for this task.
+
+I have an EAGLE/Fusion schematic but no board yet, at <workspace>/eval-3/with_skill/run-1/inputs/design.sch. Generate a placed board (.brd) from it — auto-place all the components to minimize board area and keep wire lengths short — and give me an SVG preview of the placement. The board should be ready to open in Fusion and start routing.
+
+Write every file you create or modify to ./outputs/ (keep ./inputs/ unchanged) and finish with a summary of what you found and did.

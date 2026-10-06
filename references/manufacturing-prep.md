@@ -43,27 +43,73 @@ When a fab flags fine-pitch mask, present three concrete choices:
 3. **Color/finish caveat** — dam printability depends on mask color and finish; some
    colors hold a finer dam than others, and ENIG vs HASL changes the practical floor.
 
-## 2. Plated slots — the EAGLE idiom
+## 2. Plated slots — two idioms
 
-USB-C shield tabs (and similar) need **plated slots**, not round holes. The fab-safe
-EAGLE idiom is:
+USB-C shield tabs (and similar) need **plated slots**, not round holes.
 
-> **a round `<pad>` + a single straight `<wire>` on layer 46 (Milling) along the slot
-> axis, with the wire `width` equal to the slot/drill width** — NOT a closed milling
-> outline (rectangle of four wires).
+**Preferred (Fusion Electronics): a native slot pad.** One `<pad>` carries the slot:
 
-A closed milling outline overlapping a drilled pad is what a fab flags as
-**"slot + hole overlap"**. `fix_usb` converts each shield-tab slot: it groups the
-existing layer-46 milling wires by nearest pad, removes them, and emits one axis wire
-from `min(y)+width/2` to `max(y)+width/2` (i.e. `max(y)-width/2`) at `x = centre`, with
-`width = slot extent`. The round pad provides the plating; the single-axis route at
-drill width tells the fab to mill the elongation.
+```xml
+<pad name="S1" x="-4.325" y="4.17" drill="0.6" diameter="1" slotLength="1.7" shape="slot" rot="R90"/>
+```
 
-**Excellon caveat:** native Excellon drill files cannot express a slot — only round hits.
-So even with the correct EAGLE idiom, the gerber/drill export may render the slot as a
-round drill, and the fab may still need a one-line fab note:
-**"round drill + route on the same coordinate = one plated slot."** Include that note in
-the order rather than assuming the drill file carries the slot.
+This is the syntax Fusion's own bundled connector libraries use. Fusion's CAM writes each slot
+into the Excellon file as a **routed block** (`G00 X.. Y..` / `M15` / `G01 X.. Y..` / `M16`) with the
+drill tool as the rout width — exactly what the fab routs. Before every order:
+`grep -c M15 DrillFiles/drill_*.xln` must equal the slot count (`analyze_gerbers.py --slots N`
+checks it). Fab limits (PCBWay): slot width ≥ 0.5 mm, length/width ≥ 2. The stock `eagle.dtd`
+lacks the `slot`/`slotLength` tokens — add them if you validate against the DTD. Clearance
+checks must model a slot pad as a **stadium** (core rectangle + two end circles) of the pad width
+and slot + ring length, not as a rectangle. Order remark: *"the drill file contains N routed
+plated slots (<part>), rout as plated slots"*.
+
+**Fallback (EAGLE 9, no slot pads): a round `<pad>` + a single straight layer-46 (Milling) wire
+along the slot axis, width = slot/drill width.** Never a closed milling outline (a rectangle of
+four wires over a drilled pad is what fabs flag as **"slot + hole overlap"**). Know its limit:
+**milling-layer drawings never reach the drill file.** The CAM export carries only the round
+drill, so the slot exists for the fab only if the milling layer is in the package and the order
+note says *"round drill + route on the same coordinate = one plated slot."* Overlapping gang
+drills (several Ø0.6 hits along the slot) are the other legacy workaround; they work but trip
+"Drill Clearance" DRC and inflate the hole count.
+
+## 2b. Copper rules worth checking (from boards that passed PCBWay review)
+
+- **Copper-to-edge ≥ 0.4 mm** for every wire end, via and polygon vertex; inset pours ≥ 0.5 mm.
+  `analyze_board.py` reports `copper.edge` offenders. DRU `mdCopperDimension` is the matching
+  rule (also copper-to-unplated-hole: PCBWay 16 mil / 0.41 mm for wires).
+- **Pour separation ≥ 0.3 mm** between polygons of different nets on one layer, measured
+  edge-to-edge, not by bounding boxes. EAGLE copper extends `width/2` beyond a polygon's vertex
+  path: emit vertices **inset by width/2** (0.1016 mm for the usual 0.2032 width) so the copper
+  edge lands on the nominal line. Copper gap = vertex gap − outline width, and must stay ≥ the
+  DRU clearance (0.152 mm at 6 mil).
+- **Plane-net SMD pads need their own via + stub**, or Fusion shows an airwire even with a
+  poured plane. Above ~1 A use several (a 0.3/0.6 via carries ≈ 1 A). THT pads of a rail net
+  must sit inside that rail's pour.
+- **Junction rule:** two stubs ending at the same point inside a pad form a wire junction that
+  EAGLE does not count as a pad connection. Give each stub its own end point ≥ 0.1 mm inside the pad.
+- **Coordinate text must match exactly.** A stub connects to its via only when both carry
+  identical coordinate text; a 0.0004 mm mismatch is an open in Fusion. Emit 3 decimals, round
+  before comparing, and compare with a 2 µm tolerance on import. Duplicated vias at 4-decimal vs
+  1 µm coordinates trip "Drill Clearance".
+- **No via inside an SMD pad** (EAGLE forbids via-in-pad; `mnLayersViaInSmd`). Treat a via
+  touching any pad — even its own net — as an error; keep ≥ 0.2 mm.
+- **`thermals="no"`** on vendor thermal-via pads (spokes cannot bridge a 0.7–1.2 mm grid; the
+  pads sit solidly in the plane) and on high-current THT pads (≥ 3 A). `slThermalsForVias 0`
+  joins vias to pours solidly. A tab spreader pour (e.g. 4.8 × 5.5 mm with 4 vias) must be solid,
+  not spoked.
+- **Vendor footprints whose thermal vias are drilled `<pad>`s:** add those pads to the EP pin's
+  `<connect>` list so the plane reaches them; a 0.2 mm drill needs DRU `msDrill` 0.19 mm or
+  Fusion's "Drill Size" check flags every one. `analyze_board.py thermal.ep` counts such pads.
+- **Mounting holes:** cut plane pours out around unplated holes (e.g. Ø2.2 mm hole → 2.3 mm
+  radius cutout, 1.2 mm from the wall), or a metal screw shorts GND or the rail.
+- **RF module antenna keepout:** copper-free on **every** layer under the module's restrict
+  rectangles (layers 41/42/43) + 0.5 mm; no part origin within 3 mm; notch pours around the strip.
+  Silk text is fine there, text on copper layers is not.
+- **Net-class width = the narrowest pad on the class** so the router can leave every pin; carry
+  the current in pre-routes and pours, not in router traces.
+- **Connector wire-entry faces the board edge** (a per-footprint "front" side); edge proximity
+  alone is not enough.
+- **Body gaps ≥ 0.3 mm** per copper side (THT parts count on both sides).
 
 ## 3. Footprint sync: `.lbr` → `.sch` / `.brd`
 
@@ -122,6 +168,58 @@ Do-Not-Populate, not dropped.
 - **Fab note** — carry the plated-slot note from §2 ("round drill + route = one slot")
   into the order remarks.
 
+### PCBWay capability numbers (prototype service)
+
+| Item | Limit |
+|---|---|
+| Trace / space | 0.2 mm comfortable (absolute 4 mil / 0.1 mm) |
+| Via drill / minimum drill | 0.3 mm / 0.2 mm |
+| Hole-to-hole | ≥ 0.30 mm (vias) / 0.45 mm (PTH) |
+| Copper to unplated hole | 16 mil (0.41 mm) |
+| Annular ring | 0.15 mm |
+| Silkscreen | ≥ 0.8 mm text height, 0.15 mm stroke (ratio 19) |
+| Plated slot | width ≥ 0.5 mm, length/width ≥ 2 |
+| Size surcharge | boards with **both** sides < 50 mm cost extra — keep one side at 50 mm |
+
+The DRU that matches these (`layerSetup (1+2*15+16)`, `md*` 0.152 mm, `msWidth` 6 mil,
+`msDrill` 0.19 mm, `mdDrill` 0.3 mm, `mdCopperDimension` 0.2 mm, `rlMinPad*` 10 mil,
+`rlMinVia*` 6 mil, `mlMin/MaxStopFrame` 4 mil, `mlViaStopLimit` 25 mil, `slThermalIsolate` 10 mil,
+`slThermalsForVias` 0) is documented in `eagle-xml-format.md`. The DRU `description` text goes
+stale — trust the parameter values, not the prose.
+
+### CAM export
+
+- Run the CAM job for the **actual layer count**. A 2-layer job on a 4-layer board silently drops
+  the inner planes and every plane net is open in the fab files. Confirm `copper_inner_l2` /
+  `copper_inner_l3` are in the zip (`analyze_gerbers.py --layers 4`).
+- The `.gbrjob` `BoardThickness` is the DRU stackup sum (e.g. 1.99), not the ordered thickness;
+  thickness, finish and colours are order-form settings.
+- PCBWay's upload preview draws Fusion's silk text (filled polygon regions) as a tangle of
+  straight lines. The files are fine — verify with a Gerber viewer (gerbonara renders them
+  correctly) and mention it in the remarks if the preview worries you.
+
+### Centroid / pick-and-place (CPL)
+
+Columns: `Designator, Mid X, Mid Y, Layer, Rotation`. Rules that avoid placement offsets:
+- Use the **body centre**, not the element origin, for footprints whose origin sits on pin 1 or
+  off-centre (modules: the silhouette centre can be 4.7 mm from the pad centroid).
+- If a footprint's only silk is a polarity bar, use the **pad centroid** — the silk centre lands
+  on the cathode bar (1.5–3.5 mm off).
+- Drop DNP/DNS parts from the CPL.
+- PCBWay's order check may not find a centroid file inside the CAM zip; upload the CPL separately
+  under *Production Status* when asked. Ask for the placement preview before reflow.
+
+### Assembly order form
+
+- "Detailed information of assembly" is limited to **600 characters**; state slots, THT handling,
+  DNP refs, polarity conventions and "exact MPN for ICs / module / connectors; equivalent passives OK".
+- The "Number of …" fields may stay blank. Plated slots count as through-holes if asked.
+- China substitutes = **No** with the remark above; THT Populate = Yes means PCBWay hand-solders.
+- Layer order for the form ("top-side view to bottom"): silk/paste/mask top, `copper_top_l1`,
+  `copper_inner_l2`, `copper_inner_l3`, `copper_bottom_l4`, mask/silk bottom; `profile.gbr`; `drill_*.xln`.
+- No fiducials needed for prototypes (PCBWay adds rail fiducials). An EP paste window over
+  thermal vias wicks solder — ask for the vias to be plugged or shrink the paste there.
+
 ## DFM checklist before ordering
 
 1. Fine-pitch mask dams ≥ fab minimum — mask-define if needed (`fix_drv`/`fix_usb`),
@@ -133,3 +231,8 @@ Do-Not-Populate, not dropped.
 4. BOM rolled up with MPNs; DNP parts flagged.
 5. Order form: 4-layer, ENIG, thickness/finish/color set there (not in gerbers); slot
    fab note in remarks.
+- [ ] Copper-to-edge ≥ 0.4 mm, pour gaps ≥ 0.3 mm, no via in an SMD pad (`analyze_board.py`).
+- [ ] Every plane-net SMD pad has its own via; 0 airwires after Ratsnest.
+- [ ] CAM job matches the layer count; inner copper files present (`analyze_gerbers.py --layers N`).
+- [ ] Routed-slot count in the drill file equals the slot pads (`analyze_gerbers.py --slots N`).
+- [ ] CPL centroids on the body centre; DNP rows removed; polarity marks on silk.

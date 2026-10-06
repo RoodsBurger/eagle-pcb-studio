@@ -1,0 +1,6 @@
+outputs/design.brd
+outputs/design.sch
+outputs/make_board.py
+outputs/placement.csv
+outputs/placement.png
+outputs/placement.svg

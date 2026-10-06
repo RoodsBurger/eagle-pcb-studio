@@ -135,6 +135,7 @@ def parse_schematic(path):
     # parts: resolve package + pin->pad map + footprint bbox
     parts = []
     part_info = {}                                      # name -> (pinpad, library)
+    dangling = []                                       # (part, pin, pad) connects whose pad the package lacks
     for pt in sch.findall(".//parts/part"):
         name = pt.get("name")
         lname = pt.get("library")
@@ -149,7 +150,15 @@ def parse_schematic(path):
         pk_el = lm["pkg_el"].get(pkg)
         if pk_el is None:
             raise ValueError(f"part {name}: package {pkg!r} missing in library {lname!r}")
-        pinpad = lm["dev2conn"].get((ds, dev), {})
+        # A connect may name pads the embedded package lacks (schematic out of sync with its library);
+        # such pads cannot become contactrefs, so they are dropped and reported as dangling.
+        have = {e.get("name") for e in pk_el.findall("smd") + pk_el.findall("pad")}
+        pinpad = {}
+        for pin, pads in lm["dev2conn"].get((ds, dev), {}).items():
+            kept = [pd for pd in pads if pd in have]
+            dangling.extend((name, pin, pd) for pd in pads if pd not in have)
+            if kept:
+                pinpad[pin] = kept
         bbox = pkg_bbox(pk_el)
         n_smd = len(pk_el.findall("smd"))
         n_pad = len(pk_el.findall("pad"))
@@ -179,7 +188,7 @@ def parse_schematic(path):
         if members:
             nets.append(dict(name=nname, members=members))
 
-    return dict(libraries_xml=libraries_xml, parts=parts, nets=nets, signals=signals)
+    return dict(libraries_xml=libraries_xml, parts=parts, nets=nets, signals=signals, dangling=dangling)
 
 
 # ============================================================ placement spec
@@ -501,6 +510,13 @@ def main(argv=None):
     parts, nets = parsed["parts"], parsed["nets"]
     if not parts:
         ap.error("schematic has no parts")
+    if parsed["dangling"]:
+        by_part = {}
+        for pname, pin, pad in parsed["dangling"]:
+            by_part.setdefault(pname, []).append(pad)
+        detail = "; ".join(f"{pn}: {', '.join(pads[:6])}{' …' if len(pads) > 6 else ''} ({len(pads)})" for pn, pads in by_part.items())
+        print(f"WARNING: {len(parsed['dangling'])} connect pad(s) are missing from the embedded package and get no "
+              f"contactref — the schematic's library copy is out of sync with its device: {detail}", file=sys.stderr)
 
     if args.board:
         W, H = args.board

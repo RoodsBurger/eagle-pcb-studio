@@ -1,0 +1,4 @@
+outputs/CONSISTENCY_FIX_REPORT.md
+outputs/consistency_report.json
+outputs/design.brd
+outputs/design.sch
