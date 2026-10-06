@@ -383,6 +383,10 @@ def main(argv=None):
     ap.add_argument("--model", default=None)
     ap.add_argument("--config-dir", default=None, help="isolated CLAUDE_CONFIG_DIR for the grader (default <workspace>/.claude-config if present)")
     a = ap.parse_args(argv)
+    # The grader subprocess runs with cwd=run_dir, so every path it receives must be absolute.
+    a.target = os.path.abspath(a.target)
+    if a.config_dir:
+        a.config_dir = os.path.abspath(a.config_dir)
     runs = sorted(glob.glob(os.path.join(a.target, "eval-*", "*", "run-*"))) if a.all else [a.target]
     for r in runs:
         if not os.path.exists(os.path.join(r, "timing.json")):
