@@ -248,8 +248,10 @@ def main(argv=None):
     a = ap.parse_args(argv)
 
     evals = {e["id"]: e for e in load_evals()["evals"]}
+    # Every run uses its own cwd, so all paths handed to subprocesses must be absolute.
+    a.workspace, a.fixtures = os.path.abspath(a.workspace), os.path.abspath(a.fixtures)
     os.makedirs(a.workspace, exist_ok=True)
-    config_dir = ensure_config_dir(a.config_dir or os.path.join(a.workspace, ".claude-config"))
+    config_dir = ensure_config_dir(os.path.abspath(a.config_dir or os.path.join(a.workspace, ".claude-config")))
     jobs = []
     for eid in a.eval:
         ev = evals[eid]
