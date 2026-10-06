@@ -1,0 +1,8 @@
+outputs/PLACEMENT_NOTES.md
+outputs/design.brd
+outputs/design_placement.svg
+outputs/emit_board.py
+outputs/place_board.py
+outputs/placement.json
+outputs/size_sweep.py
+outputs/sweep_results.jsonl

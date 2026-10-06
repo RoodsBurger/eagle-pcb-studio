@@ -1,0 +1,3 @@
+outputs/SUMMARY.md
+outputs/design.brd
+outputs/design.sch

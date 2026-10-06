@@ -1,0 +1,5 @@
+outputs/make_placement.py
+outputs/placement.csv
+outputs/placement_preview.png
+outputs/placement_preview.svg
+outputs/placement_report.md

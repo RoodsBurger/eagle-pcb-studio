@@ -1,0 +1,3 @@
+Fusion's ERC says my schematic and board are inconsistent and won't let me move on. Schematic: <workspace>/eval-1/no_skill/run-1/inputs/design.sch, board: <workspace>/eval-1/no_skill/run-1/inputs/design.brd. The board is the one I've been routing in, so treat the board as correct. Find what's inconsistent and fix it.
+
+Write every file you create or modify to ./outputs/ (keep ./inputs/ unchanged) and finish with a summary of what you found and did.

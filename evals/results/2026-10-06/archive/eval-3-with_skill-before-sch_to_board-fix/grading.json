@@ -1,0 +1,59 @@
+{
+  "eval_id": 3,
+  "eval_name": "sch-to-board",
+  "configuration": "with_skill",
+  "expectations": [
+    {
+      "text": "Produces a valid EAGLE .brd that parses and retains the <!DOCTYPE eagle> declaration.",
+      "passed": true,
+      "evidence": "outputs/design.brd: parses and keeps <!DOCTYPE eagle SYSTEM \"eagle.dtd\">",
+      "verified_by": "script"
+    },
+    {
+      "text": "Every schematic part is placed as an <element> with no overlapping footprints, all within the board outline.",
+      "passed": true,
+      "evidence": "71 elements for 71 schematic parts (missing: none); analyze_board.py overlaps: 0; element origins outside outline (0.0, 0.0, 79.3, 46.0): none",
+      "verified_by": "script"
+    },
+    {
+      "text": "Every schematic net appears as a <signal> with the correct contactrefs (unrouted ratsnest).",
+      "passed": false,
+      "evidence": "57 signals for 57 schematic nets (missing: none); contactrefs 284 on the board vs 252 implied by the schematic's device connects (pads that exist in the package); missing: none; unexpected or dangling (pad absent from the package): GND:J_USB.S1B, GND:J_USB.S1C, GND:J_USB.S1D, GND:J_USB.S1E, GND:J_USB.S1F, GND:J_USB.S1G \u2026 (+26)",
+      "verified_by": "script"
+    },
+    {
+      "text": "The board's libraries match the schematic (footprints consistent / check_consistency PASS).",
+      "passed": true,
+      "evidence": "check_consistency.py inputs/design.sch outputs/design.brd -> PASS",
+      "verified_by": "script"
+    },
+    {
+      "text": "Produces an SVG preview of the placement.",
+      "passed": true,
+      "evidence": "outputs/design.svg parses with 612 shapes",
+      "verified_by": "script"
+    }
+  ],
+  "summary": {
+    "passed": 4,
+    "failed": 1,
+    "total": 5,
+    "pass_rate": 0.8
+  },
+  "execution_metrics": {
+    "total_tool_calls": 16,
+    "errors_encountered": 2,
+    "output_chars": 29673,
+    "status": "ok"
+  },
+  "timing": {
+    "executor_duration_seconds": 165.7,
+    "grader_duration_seconds": 0.0,
+    "total_duration_seconds": 165.7
+  },
+  "grader": {
+    "models": [],
+    "cost_usd": null,
+    "notes": []
+  }
+}

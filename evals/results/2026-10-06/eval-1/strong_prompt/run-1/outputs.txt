@@ -1,0 +1,3 @@
+outputs/CHANGES.md
+outputs/design.brd
+outputs/design.sch

@@ -1,0 +1,14 @@
+{
+  "eval_id": 2,
+  "eval_name": "placement-min-area",
+  "prompt": "I'm starting the layout for a small 30 x 30 mm board and want a compact starting placement that'll be easy to route. Parts: U1 = ESP32-S3 module (18 x 25.5 mm), U2 = buck regulator (SOT23-6, ~3 x 3 mm), C1-C4 = 0402 decoupling caps (1 x 0.5 mm), L1 = inductor (5 x 5 mm), J1 = USB-C connector (9 x 4 mm, must sit on a board edge), J2 = 4-pin header (10 x 2.5 mm, also on an edge). Nets: 3V3 = U1,U2,C1,C2,L1; VBUS = J1,U2,C3; GND = everything; USB_DP and USB_DM = J1,U1. Place the parts to minimize board area while keeping the busy nets short, and give me an SVG preview I can look at.",
+  "plain_prompt": "I'm laying out a small 30 x 30 mm board and need a starting placement. Parts: U1 = ESP32-S3 module (18 x 25.5 mm), U2 = buck regulator (SOT23-6, ~3 x 3 mm), C1-C4 = 0402 decoupling caps (1 x 0.5 mm), L1 = inductor (5 x 5 mm), J1 = USB-C connector (9 x 4 mm, on a board edge), J2 = 4-pin header (10 x 2.5 mm, on an edge). Nets: 3V3 = U1,U2,C1,C2,L1; VBUS = J1,U2,C3; GND = everything; USB_DP and USB_DM = J1,U1. Give me a placement and a picture of it.",
+  "assertions": [
+    "Places all 8 parts (U1, U2, C1-C4, L1, J1, J2).",
+    "No two parts overlap.",
+    "All parts fit within the 30 x 30 mm board.",
+    "J1 and J2 are placed on a board edge (constraint honored).",
+    "Produces a valid SVG preview (parses, contains the board outline + parts)."
+  ],
+  "files": []
+}

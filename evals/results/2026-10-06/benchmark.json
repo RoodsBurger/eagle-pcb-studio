@@ -1,0 +1,649 @@
+{
+  "metadata": {
+    "skill_name": "eagle-pcb-studio",
+    "executor_model": "claude-fable-5-1",
+    "grader": "scripts (check_consistency.py, analyze_board.py, XML parsing) for mechanical checks; Claude grader model for the rest",
+    "timestamp": "2026-10-06T17:54:09Z",
+    "evals_run": {
+      "1": "erc-inconsistent-footprints",
+      "2": "placement-min-area",
+      "3": "sch-to-board"
+    },
+    "runs_per_configuration": 1,
+    "tokens_definition": "output tokens of the executor run (input and cache tokens are in each run's timing.json)"
+  },
+  "configurations": [
+    "with_skill",
+    "strong_prompt",
+    "no_skill"
+  ],
+  "runs": [
+    {
+      "eval_id": 1,
+      "eval_name": "erc-inconsistent-footprints",
+      "configuration": "no_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 186.8,
+        "tokens": 14577,
+        "cost_usd": 1.6109795000000002,
+        "tool_calls": 9,
+        "errors": 1,
+        "status": "ok",
+        "models": [
+          "claude-fable-5-1"
+        ]
+      },
+      "expectations": [
+        {
+          "text": "Correctly identifies U_DRV (SOP65P640X120-29N) and J_USB (HRO_TYPE-C-31-M-12) as the inconsistent footprints.",
+          "passed": true,
+          "evidence": "Agent's package comparison printed \"DIFFERS ('DRV8313PWPR', 'SOP65P640X120-29N')\" and \"DIFFERS ('TYPE-C-31-M-12', 'HRO_TYPE-C-31-M-12')\" as the only differing packages; SUMMARY.md names \"package `HRO_TYPE-C-31-M-12` (J_USB)\" and \"package `SOP65P640X120-29N` (U_DRV)\" and both blocks were replaced with the board's versions.",
+          "verified_by": "grader-model"
+        },
+        {
+          "text": "Explains the inconsistency is in package geometry (solder-mask / slot) between sch and brd.",
+          "passed": true,
+          "evidence": "Agent located the mismatch in the embedded library <package> blocks rather than the netlist, and for SOP65P640X120-29N explained the sch copy had \"rounded-corner solder-mask polygons, no `pour` attribute\" (layer 29 polygon vertices shown in the diff). For HRO_TYPE-C-31-M-12 it described the geometry difference as 16 vs 48 pads (missing S1B\u2013S4I shield pads). Slot geometry was not explicitly mentioned.",
+          "verified_by": "grader-model"
+        },
+        {
+          "text": "Produces a corrected schematic that is consistent with the board (check_consistency PASS on the output).",
+          "passed": true,
+          "evidence": "check_consistency.py outputs/design.sch inputs/design.brd -> PASS",
+          "verified_by": "script"
+        },
+        {
+          "text": "Corrected .sch remains valid EAGLE XML with DOCTYPE intact and parses.",
+          "passed": true,
+          "evidence": "outputs/design.sch: parses and keeps <!DOCTYPE eagle SYSTEM \"eagle.dtd\">",
+          "verified_by": "script"
+        },
+        {
+          "text": "Does not alter the netlist \u2014 parts (71) and nets (57) still match the board.",
+          "passed": true,
+          "evidence": "check_consistency.py: PARTS sch=71 brd=71, NETS sch=57 brd=57",
+          "verified_by": "script"
+        }
+      ],
+      "notes": [
+        "The agent labeled the U_DRV (SOP65P640X120-29N) solder-mask polygon difference as \"cosmetic only\"; if the task intended that solder-mask geometry change as a real inconsistency, the explanation understates it, though the fix (copying the board's block) still corrects it.",
+        "For J_USB the agent framed the difference as pad count (16 vs 48 pads) and never used the word \"slot\"; the assertion's slot example is therefore only implicitly covered by replacing the whole package block.",
+        "The agent also observed value-attribute differences (D_USB, J_USB, Q_CW, Q_WW, U_DRV, U_MCU have value only on the board) but did not change or discuss them in the summary; check_consistency passed regardless."
+      ]
+    },
+    {
+      "eval_id": 1,
+      "eval_name": "erc-inconsistent-footprints",
+      "configuration": "strong_prompt",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 249.9,
+        "tokens": 12238,
+        "cost_usd": 1.7841935,
+        "tool_calls": 9,
+        "errors": 0,
+        "status": "ok",
+        "models": [
+          "claude-fable-5-1"
+        ]
+      },
+      "expectations": [
+        {
+          "text": "Correctly identifies U_DRV (SOP65P640X120-29N) and J_USB (HRO_TYPE-C-31-M-12) as the inconsistent footprints.",
+          "passed": true,
+          "evidence": "Tool-verified package-by-package comparison across all 33 shared packages printed exactly two mismatches: \"[DRV8313PWPR] SOP65P640X120-29N: DIFFERENT\" and \"[TYPE-C-31-M-12] HRO_TYPE-C-31-M-12: DIFFERENT\", all others \"OK\". Final summary and CHANGES.md name both: \"J_USB, package HRO_TYPE-C-31-M-12\" and \"U_DRV, package SOP65P640X120-29N\", and note the part/element declarations (library, URN, package name, package3d_urn) matched so the mismatch was inside the embedded package definitions.",
+          "verified_by": "grader-model"
+        },
+        {
+          "text": "Explains the inconsistency is in package geometry (solder-mask / slot) between sch and brd.",
+          "passed": true,
+          "evidence": "U_DRV: \"Only the 31 copper and stop-mask polygons differed. The schematic had rounded-corner outlines using curved vertices, the board has rectangular solid-pour outlines\" (CHANGES.md: \"31 polygons (layer 1 copper + layer 29 stop mask)\"), backed by the diff showing `<polygon width=\"0.01\" layer=\"29\">` with curve vertices vs `pour=\"solid\"` rectangles. J_USB: schematic had 4 round shield pads vs board's 36 including \"32 stacked pads named S1B through S4I that form the slotted shield holes\"; also \"Mask rectangles, layer 46 slot outlines and copper polygons differed\" with a table row \"slot outline (layer 46 Milling): 24 zero-width wires vs 4 wires, width 0.6\" and \"mask rectangles (layer 29): 12, wider vs 12, narrower\".",
+          "verified_by": "grader-model"
+        },
+        {
+          "text": "Produces a corrected schematic that is consistent with the board (check_consistency PASS on the output).",
+          "passed": true,
+          "evidence": "check_consistency.py outputs/design.sch inputs/design.brd -> PASS",
+          "verified_by": "script"
+        },
+        {
+          "text": "Corrected .sch remains valid EAGLE XML with DOCTYPE intact and parses.",
+          "passed": true,
+          "evidence": "outputs/design.sch: parses and keeps <!DOCTYPE eagle SYSTEM \"eagle.dtd\">",
+          "verified_by": "script"
+        },
+        {
+          "text": "Does not alter the netlist \u2014 parts (71) and nets (57) still match the board.",
+          "passed": true,
+          "evidence": "check_consistency.py: PARTS sch=71 brd=71, NETS sch=57 brd=57",
+          "verified_by": "script"
+        }
+      ],
+      "notes": [
+        "The agent's diagnosis is grounded in actual tool output (canonicalized XML set-diff of package children), not just assertion; the pad-level diff (S1..S4 round 0.9 vs long 1.0 R90, 32 extra S*B..S*I pads only in board) is quoted directly from the tool result.",
+        "The agent additionally found the schematic's own device <connects> referenced 32 pads absent from its own package (fixed to 0 dangling after the splice), which is a stronger piece of evidence that the schematic copy was the stale one, consistent with the user's 'board is correct' instruction.",
+        "CHANGES.md appears truncated in the listing at ~3113 bytes (ends mid-sentence 'devicesets, connect'); this is likely a display cutoff, but a reviewer may want to confirm the file is complete on disk."
+      ]
+    },
+    {
+      "eval_id": 1,
+      "eval_name": "erc-inconsistent-footprints",
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 182.6,
+        "tokens": 10652,
+        "cost_usd": 1.6665302499999999,
+        "tool_calls": 12,
+        "errors": 3,
+        "status": "ok",
+        "models": [
+          "claude-fable-5-1"
+        ]
+      },
+      "expectations": [
+        {
+          "text": "Correctly identifies U_DRV (SOP65P640X120-29N) and J_USB (HRO_TYPE-C-31-M-12) as the inconsistent footprints.",
+          "passed": true,
+          "evidence": "Checker output on inputs: \"[FAIL] PACKAGES sch=33 brd=33 shared=33 / geometrically inconsistent (ERC errors): HRO_TYPE-C-31-M-12, SOP65P640X120-29N\". Report maps them to the parts: \"### J_USB \u2014 package `HRO_TYPE-C-31-M-12` (library `TYPE-C-31-M-12`)\" and \"### U_DRV \u2014 package `SOP65P640X120-29N` (library `DRV8313PWPR`, HTSSOP-28 with thermal pad)\". Agent also confirmed via the --sync run: \"replaced 2 package(s): HRO_TYPE-C-31-M-12, SOP65P640X120-29N\".",
+          "verified_by": "grader-model"
+        },
+        {
+          "text": "Explains the inconsistency is in package geometry (solder-mask / slot) between sch and brd.",
+          "passed": true,
+          "evidence": "Report for J_USB: \"Plated-slot milling (layer 46) | 24 wires forming 4 closed stadium outlines, width 0 | 4 single wires through the pad centres, width 0.6 mm = drill\" and \"Solder-mask (layer 29) openings over the 12 SMD signal pads | 0.40 mm wide | 0.25 mm wide\"; also S1\u2013S4 pad shape change (round 0.9 \u2192 long 1.0 R90) plus 32 helper pads. For U_DRV: \"the difference is purely in the 31 package polygons ... 28 per-pin stop-mask polygons (layer 29) | 8-vertex rounded rectangles with curve=-90, 1.60 \u00d7 0.55 mm | 4-vertex plain rectangles 1.60 \u00d7 0.40 mm, pour=solid\" and thermal-pad copper/stop/cream polygons with arcs flattened. These were derived from the agent's own element-by-element diffs (pkgdiff2/pkgdiff3 output in transcript), not just asserted.",
+          "verified_by": "grader-model"
+        },
+        {
+          "text": "Produces a corrected schematic that is consistent with the board (check_consistency PASS on the output).",
+          "passed": true,
+          "evidence": "check_consistency.py outputs/design.sch inputs/design.brd -> PASS",
+          "verified_by": "script"
+        },
+        {
+          "text": "Corrected .sch remains valid EAGLE XML with DOCTYPE intact and parses.",
+          "passed": true,
+          "evidence": "outputs/design.sch: parses and keeps <!DOCTYPE eagle SYSTEM \"eagle.dtd\">",
+          "verified_by": "script"
+        },
+        {
+          "text": "Does not alter the netlist \u2014 parts (71) and nets (57) still match the board.",
+          "passed": true,
+          "evidence": "check_consistency.py: PARTS sch=71 brd=71, NETS sch=57 brd=57",
+          "verified_by": "script"
+        }
+      ],
+      "notes": [
+        "The first assertion is largely satisfied by the skill's check_consistency.py, which names both packages directly; the agent's contribution was mapping package names back to the part refdes (J_USB/U_DRV) via the deviceset/element lookup, which it did do.",
+        "The report's root-cause claim that the schematic's SHIELD connect already listed all 36 pad names (S1B\u2026S4I) while the embedded package defined only S1\u2013S4 was verified in the transcript (grep found the connect line 2163 in the input .sch and zero <pad name=\"S1B\"> definitions). An earlier grep for pad=\"S1B\" returned 0 because the pad list is space-separated in one attribute; the agent correctly re-checked rather than drawing a wrong conclusion.",
+        "outputs/consistency_report.json reflects the post-sync state (pass: true), since it was written by the same --sync invocation; the pre-fix FAIL verdict is only in the transcript, not in an output file."
+      ]
+    },
+    {
+      "eval_id": 2,
+      "eval_name": "placement-min-area",
+      "configuration": "no_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 273.9,
+        "tokens": 21864,
+        "cost_usd": 1.8652220000000002,
+        "tool_calls": 9,
+        "errors": 2,
+        "status": "ok",
+        "models": [
+          "claude-fable-5-1"
+        ]
+      },
+      "expectations": [
+        {
+          "text": "Places all 8 parts (U1, U2, C1-C4, L1, J1, J2).",
+          "passed": true,
+          "evidence": "outputs/placement.csv has one row per refdes with centre, rotation and extents: U1 (20.0,17.25), J1 (5.5,2.0), J2 (21.0,1.25), U2 (4.0,9.5), L1 (4.5,15.0), C3 (3.0,6.3), C4 (7.6,9.5), C1 (7.5,19.0), C2 (9.5,19.0). All nine refdes (U1, U2, C1, C2, C3, C4, L1, J1, J2) are placed; the render script's `parts` list and the final summary table match the CSV.",
+          "verified_by": "grader-model"
+        },
+        {
+          "text": "No two parts overlap.",
+          "passed": true,
+          "evidence": "Checked every pair from the CSV extents: U1 X 11..29 / Y 4.5..30; J1 X 1..10 / Y 0..4; J2 X 16..26 / Y 0..2.5 (Y max 2.5 < U1 Y min 4.5); U2 X 2.5..5.5 / Y 8..11; L1 X 2..7 / Y 12.5..17.5 (Y min 12.5 > U2 Y max 11); C3 X 2.5..3.5 / Y 6.05..6.55 (between J1 and U2); C4 X 7.10..8.10 (right of U2, left of U1); C1 X 7..8 / Y 18.75..19.25 and C2 X 9..10 / Y 18.75..19.25 (above L1, left of U1). No axis-aligned rectangles intersect.",
+          "verified_by": "grader-model"
+        },
+        {
+          "text": "All parts fit within the 30 x 30 mm board.",
+          "passed": true,
+          "evidence": "All CSV extents lie within X 0..30 and Y 0..30. Tightest cases: U1 Y 4.50..30.00 (flush with top edge, not beyond), J1 and J2 Y min 0.00 (flush with bottom edge), max X is U1 at 29.00, min X is J1 at 1.00.",
+          "verified_by": "grader-model"
+        },
+        {
+          "text": "J1 and J2 are placed on a board edge (constraint honored).",
+          "passed": true,
+          "evidence": "CSV: J1 extent Y 0.00..4.00, note \"mouth flush with bottom edge\"; J2 extent Y 0.00..2.50, note \"bottom edge\". Both touch the Y=0 board edge. The md table repeats \"Bottom edge\" for both.",
+          "verified_by": "grader-model"
+        },
+        {
+          "text": "Produces a valid SVG preview (parses, contains the board outline + parts).",
+          "passed": true,
+          "evidence": "outputs/placement.svg parses: 150 shapes, part labels found: ['C1', 'C2', 'C3', 'C4', 'L1']",
+          "verified_by": "script"
+        }
+      ],
+      "notes": [
+        "The assertion says \"8 parts\" but the enumerated list (U1, U2, C1-C4, L1, J1, J2) is actually 9 refdes; the agent placed all 9, so the assertion is satisfied under either count.",
+        "placement.csv and placement.md disagree on the extents of the 90\u00b0-rotated 0402 caps (CSV lists them 1.0 mm in X by 0.5 mm in Y, e.g. C3 X 2.50..3.50 / Y 6.05..6.55; the md lists 0.5 x 1.0, e.g. C3 X 2.75..3.25 / Y 5.8..6.8). Neither version produces an overlap or out-of-board condition, so it does not affect the graded assertions, but it is an internal inconsistency.",
+        "The antenna keepout stated in placement.md (\"full board width, Y 24..30. No copper, no parts on any layer\") is contradicted by U1 itself occupying Y 24..30; the intent is clearly 'no other parts', but the wording is wrong as written."
+      ]
+    },
+    {
+      "eval_id": 2,
+      "eval_name": "placement-min-area",
+      "configuration": "strong_prompt",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 248.3,
+        "tokens": 19496,
+        "cost_usd": 1.7159985,
+        "tool_calls": 7,
+        "errors": 0,
+        "status": "ok",
+        "models": [
+          "claude-fable-5-1"
+        ]
+      },
+      "expectations": [
+        {
+          "text": "Places all 8 parts (U1, U2, C1-C4, L1, J1, J2).",
+          "passed": true,
+          "evidence": "placement.csv has rows for U1, J1, J2, U2, L1, C1, C2, C3, C4 with explicit centers, sizes and rotations; the SVG parser also found labels ['C1','C2','C3','C4','J1','J2','L1','U1','U2']. (Note: the listed refs actually total 9 parts, all present.)",
+          "verified_by": "grader-model"
+        },
+        {
+          "text": "No two parts overlap.",
+          "passed": true,
+          "evidence": "From the CSV, bounding boxes are: U1 x12-30 y0-25.5; J1 x1.5-10.5 y26-30; J2 x14.5-24.5 y27.5-30; U2 x5.5-8.5 y17-20; L1 x4.5-9.5 y9.5-14.5; C1 x8.5-9.5 y8.25-8.75; C2 x10.25-11.25 y6.25-6.75; C3 x3.75-4.25 y18-19; C4 x10.25-11.25 y7.75-8.25. Every pair is disjoint (closest: J2 top 27.5 vs U1 bottom 25.5; C1 bottom 8.75 vs L1 top 9.5; C2/C4 same x column with 1.0 mm y gap).",
+          "verified_by": "grader-model"
+        },
+        {
+          "text": "All parts fit within the 30 x 30 mm board.",
+          "passed": true,
+          "evidence": "Min x is 1.5 (J1), max x is 30.0 (U1 right edge); min y is 0.0 (U1 top), max y is 30.0 (J1, J2 bottom). All extents lie in [0,30]; U1 is flush to the top and right edges with zero margin but does not exceed the outline.",
+          "verified_by": "grader-model"
+        },
+        {
+          "text": "J1 and J2 are placed on a board edge (constraint honored).",
+          "passed": true,
+          "evidence": "J1 center (6, 28) with h=4 spans y 26-30, and J2 center (19.5, 28.75) with h=2.5 spans y 27.5-30; both bottoms coincide exactly with the y=30 board edge. Report states 'J1 and J2 on the bottom edge'.",
+          "verified_by": "grader-model"
+        },
+        {
+          "text": "Produces a valid SVG preview (parses, contains the board outline + parts).",
+          "passed": true,
+          "evidence": "outputs/placement_preview.svg parses: 100 shapes, part labels found: ['C1', 'C2', 'C3', 'C4', 'J1', 'J2', 'L1', 'U1', 'U2']",
+          "verified_by": "script"
+        }
+      ],
+      "notes": [
+        "The assertion text says 8 parts but the enumerated list (U1, U2, C1-C4, L1, J1, J2) is 9 parts; all 9 are placed.",
+        "U1 is placed flush to both the top edge (y=0) and right edge (x=30) with zero clearance, and the agent suggests letting it overhang the top edge by ~1 mm. It technically fits, but a real fab would want edge clearance; the antenna keepout hatch drawn over the module is also noted only in the SVG.",
+        "C4 has no net besides GND in the prompt; the agent assigned it to an assumed EN RC role and placed it accordingly, which is disclosed in the summary."
+      ]
+    },
+    {
+      "eval_id": 2,
+      "eval_name": "placement-min-area",
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 241.2,
+        "tokens": 14681,
+        "cost_usd": 1.8004892499999998,
+        "tool_calls": 14,
+        "errors": 3,
+        "status": "ok",
+        "models": [
+          "claude-fable-5-1"
+        ]
+      },
+      "expectations": [
+        {
+          "text": "Places all 8 parts (U1, U2, C1-C4, L1, J1, J2).",
+          "passed": true,
+          "evidence": "outputs/esp32s3_30x30_placements.json places ['C1', 'C2', 'C3', 'C4', 'J1', 'J2', 'L1', 'U1', 'U2']",
+          "verified_by": "script"
+        },
+        {
+          "text": "No two parts overlap.",
+          "passed": true,
+          "evidence": "rectangle overlap test on 9 parts: none",
+          "verified_by": "script"
+        },
+        {
+          "text": "All parts fit within the 30 x 30 mm board.",
+          "passed": true,
+          "evidence": "all rotated bboxes within 30 x 30 mm: True; bboxes: C1=(5.3,16.8)-(5.8,17.8); C2=(3.8,16.8)-(4.3,17.8); C3=(5.3,14.8)-(5.8,15.8); C4=(9.3,6.8)-(9.8,7.8); J1=(1.3,0.8)-(10.3,4.8); J2=(0.8,18.8)-(3.3,28.8); L1=(4.8,8.8)-(9.8,13.8); U1=(10.8,3.7)-(28.8,29.2); U2=(6.8,14.8)-(9.8,17.8)",
+          "verified_by": "script"
+        },
+        {
+          "text": "J1 and J2 are placed on a board edge (constraint honored).",
+          "passed": true,
+          "evidence": "edge test (bbox within 1.3 mm of an outline edge): {'J1': True, 'J2': True}",
+          "verified_by": "script"
+        },
+        {
+          "text": "Produces a valid SVG preview (parses, contains the board outline + parts).",
+          "passed": true,
+          "evidence": "outputs/esp32s3_30x30_placement.svg parses: 30 shapes, part labels found: ['C1', 'C2', 'C3', 'C4', 'J1', 'J2', 'L1', 'U1', 'U2']",
+          "verified_by": "script"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "eval_name": "sch-to-board",
+      "configuration": "no_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 457.0,
+        "tokens": 35183,
+        "cost_usd": 3.5260822500000004,
+        "tool_calls": 11,
+        "errors": 2,
+        "status": "ok",
+        "models": [
+          "claude-fable-5-1"
+        ]
+      },
+      "expectations": [
+        {
+          "text": "Produces a valid EAGLE .brd that parses and retains the <!DOCTYPE eagle> declaration.",
+          "passed": true,
+          "evidence": "outputs/design.brd: parses and keeps <!DOCTYPE eagle SYSTEM \"eagle.dtd\">",
+          "verified_by": "script"
+        },
+        {
+          "text": "Every schematic part is placed as an <element> with no overlapping footprints, all within the board outline.",
+          "passed": true,
+          "evidence": "71 elements for 71 schematic parts (missing: none); analyze_board.py overlaps: 0; element origins outside outline (0.0, 0.0, 100.0, 60.0): none",
+          "verified_by": "script"
+        },
+        {
+          "text": "Every schematic net appears as a <signal> with the correct contactrefs (unrouted ratsnest).",
+          "passed": true,
+          "evidence": "57 signals for 57 schematic nets (missing: none); contactrefs 252 on the board vs 252 implied by the schematic's device connects (pads that exist in the package); missing: none; unexpected or dangling (pad absent from the package): none",
+          "verified_by": "script"
+        },
+        {
+          "text": "The board's libraries match the schematic (footprints consistent / check_consistency PASS).",
+          "passed": true,
+          "evidence": "check_consistency.py inputs/design.sch outputs/design.brd -> PASS",
+          "verified_by": "script"
+        },
+        {
+          "text": "Produces an SVG preview of the placement.",
+          "passed": true,
+          "evidence": "outputs/placement.svg parses with 929 shapes",
+          "verified_by": "script"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "eval_name": "sch-to-board",
+      "configuration": "strong_prompt",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 881.1,
+        "tokens": 56421,
+        "cost_usd": 6.230677750000001,
+        "tool_calls": 49,
+        "errors": 6,
+        "status": "ok",
+        "models": [
+          "claude-fable-5-1"
+        ]
+      },
+      "expectations": [
+        {
+          "text": "Produces a valid EAGLE .brd that parses and retains the <!DOCTYPE eagle> declaration.",
+          "passed": true,
+          "evidence": "outputs/design.brd: parses and keeps <!DOCTYPE eagle SYSTEM \"eagle.dtd\">",
+          "verified_by": "script"
+        },
+        {
+          "text": "Every schematic part is placed as an <element> with no overlapping footprints, all within the board outline.",
+          "passed": true,
+          "evidence": "71 elements for 71 schematic parts (missing: none); analyze_board.py overlaps: 0; element origins outside outline (0.0, 0.0, 56.0, 56.0): none",
+          "verified_by": "script"
+        },
+        {
+          "text": "Every schematic net appears as a <signal> with the correct contactrefs (unrouted ratsnest).",
+          "passed": false,
+          "evidence": "57 signals for 57 schematic nets (missing: none); contactrefs 284 on the board vs 252 implied by the schematic's device connects (pads that exist in the package); missing: none; unexpected or dangling (pad absent from the package): GND:J_USB.S1B, GND:J_USB.S1C, GND:J_USB.S1D, GND:J_USB.S1E, GND:J_USB.S1F, GND:J_USB.S1G \u2026 (+26)",
+          "verified_by": "script"
+        },
+        {
+          "text": "The board's libraries match the schematic (footprints consistent / check_consistency PASS).",
+          "passed": true,
+          "evidence": "check_consistency.py inputs/design.sch outputs/design.brd -> PASS",
+          "verified_by": "script"
+        },
+        {
+          "text": "Produces an SVG preview of the placement.",
+          "passed": true,
+          "evidence": "outputs/design_placement.svg parses with 619 shapes",
+          "verified_by": "script"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "eval_name": "sch-to-board",
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 656.6,
+        "tokens": 35159,
+        "cost_usd": 3.674484,
+        "tool_calls": 30,
+        "errors": 0,
+        "status": "ok",
+        "models": [
+          "claude-fable-5-1"
+        ]
+      },
+      "expectations": [
+        {
+          "text": "Produces a valid EAGLE .brd that parses and retains the <!DOCTYPE eagle> declaration.",
+          "passed": true,
+          "evidence": "outputs/design.brd: parses and keeps <!DOCTYPE eagle SYSTEM \"eagle.dtd\">",
+          "verified_by": "script"
+        },
+        {
+          "text": "Every schematic part is placed as an <element> with no overlapping footprints, all within the board outline.",
+          "passed": true,
+          "evidence": "71 elements for 71 schematic parts (missing: none); analyze_board.py overlaps: 0; element origins outside outline (0.0, 0.0, 87.15, 42.5): none",
+          "verified_by": "script"
+        },
+        {
+          "text": "Every schematic net appears as a <signal> with the correct contactrefs (unrouted ratsnest).",
+          "passed": true,
+          "evidence": "57 signals for 57 schematic nets (missing: none); contactrefs 252 on the board vs 252 implied by the schematic's device connects (pads that exist in the package); missing: none; unexpected or dangling (pad absent from the package): none",
+          "verified_by": "script"
+        },
+        {
+          "text": "The board's libraries match the schematic (footprints consistent / check_consistency PASS).",
+          "passed": true,
+          "evidence": "check_consistency.py inputs/design.sch outputs/design.brd -> PASS",
+          "verified_by": "script"
+        },
+        {
+          "text": "Produces an SVG preview of the placement.",
+          "passed": true,
+          "evidence": "outputs/design_placement.svg parses with 612 shapes",
+          "verified_by": "script"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0,
+        "n": 3
+      },
+      "time_seconds": {
+        "mean": 360.1333,
+        "stddev": 258.4141,
+        "min": 182.6,
+        "max": 656.6,
+        "n": 3
+      },
+      "tokens": {
+        "mean": 20164.0,
+        "stddev": 13141.3747,
+        "min": 10652,
+        "max": 35159,
+        "n": 3
+      },
+      "cost_usd": {
+        "mean": 2.3805,
+        "stddev": 1.1226,
+        "min": 1.6665,
+        "max": 3.6745,
+        "n": 3
+      },
+      "checks_passed": 15,
+      "checks_total": 15,
+      "runs": 3
+    },
+    "strong_prompt": {
+      "pass_rate": {
+        "mean": 0.9333,
+        "stddev": 0.1155,
+        "min": 0.8,
+        "max": 1.0,
+        "n": 3
+      },
+      "time_seconds": {
+        "mean": 459.7667,
+        "stddev": 364.8862,
+        "min": 248.3,
+        "max": 881.1,
+        "n": 3
+      },
+      "tokens": {
+        "mean": 29385.0,
+        "stddev": 23693.4297,
+        "min": 12238,
+        "max": 56421,
+        "n": 3
+      },
+      "cost_usd": {
+        "mean": 3.2436,
+        "stddev": 2.5871,
+        "min": 1.716,
+        "max": 6.2307,
+        "n": 3
+      },
+      "checks_passed": 14,
+      "checks_total": 15,
+      "runs": 3
+    },
+    "no_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0,
+        "n": 3
+      },
+      "time_seconds": {
+        "mean": 305.9,
+        "stddev": 137.9131,
+        "min": 186.8,
+        "max": 457.0,
+        "n": 3
+      },
+      "tokens": {
+        "mean": 23874.6667,
+        "stddev": 10449.1097,
+        "min": 14577,
+        "max": 35183,
+        "n": 3
+      },
+      "cost_usd": {
+        "mean": 2.3341,
+        "stddev": 1.0401,
+        "min": 1.611,
+        "max": 3.5261,
+        "n": 3
+      },
+      "checks_passed": 15,
+      "checks_total": 15,
+      "runs": 3
+    },
+    "delta": {
+      "with_skill - strong_prompt": {
+        "pass_rate": "+0.07",
+        "time_seconds": "-99.6",
+        "tokens": "-9221"
+      },
+      "with_skill - no_skill": {
+        "pass_rate": "+0.00",
+        "time_seconds": "+54.2",
+        "tokens": "-3711"
+      }
+    }
+  },
+  "notes": [
+    "Executor and grader model: claude-fable-5-1 via the Claude Code CLI, isolated config dir, skills and MCP servers disabled, one run per configuration and eval.",
+    "Eval 0 (gerber-fab-review) was not run: its fixture is a Fusion CAM export that exists only on the author's personal machine. Nothing here covers the solder-mask-dam check where the June 2026 run saw the skill's one win (0.048 mm dams).",
+    "Eval 3 with_skill: the first run scored 4/5. sch_to_board.py emitted 32 contactrefs to USB-C shield pads that the schematic's embedded package does not define (the device connects name them; the package copy is out of sync). Fixed in sch_to_board.py (pads absent from the package are dropped with a WARNING); the table shows the rerun with the fixed skill. The first run's grading is kept under archive/.",
+    "Eval 3 strong_prompt: 4/5 for the same reason (284 contactrefs incl. 32 dangling). The no_skill run connected only pads that exist (252) and passed.",
+    "Grading: assertions a script can decide (XML validity, DOCTYPE, check_consistency, part/net counts, exact contactref sets against the device connects restricted to existing pads, overlaps, bounds, edge placement, SVG validity) are decided by scripts; the rest (what the transcript identified and explained) by the grader model with quoted evidence.",
+    "Earlier run (June 2026, skill-creator harness, 1 run per configuration): with skill 20/20, strong prompt 19/20; raw workspace not in this repository. Its benchmark.md showed '0% \u00b1 0%' because the skill-creator aggregator defaults a missing summary.pass_rate to 0.0 and prints \u00b10 for single runs; this aggregator derives pass_rate from passed/total and prints n=1."
+  ]
+}

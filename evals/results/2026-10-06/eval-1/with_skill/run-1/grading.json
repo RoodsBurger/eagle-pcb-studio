@@ -1,0 +1,65 @@
+{
+  "eval_id": 1,
+  "eval_name": "erc-inconsistent-footprints",
+  "configuration": "with_skill",
+  "expectations": [
+    {
+      "text": "Correctly identifies U_DRV (SOP65P640X120-29N) and J_USB (HRO_TYPE-C-31-M-12) as the inconsistent footprints.",
+      "passed": true,
+      "evidence": "Checker output on inputs: \"[FAIL] PACKAGES sch=33 brd=33 shared=33 / geometrically inconsistent (ERC errors): HRO_TYPE-C-31-M-12, SOP65P640X120-29N\". Report maps them to the parts: \"### J_USB \u2014 package `HRO_TYPE-C-31-M-12` (library `TYPE-C-31-M-12`)\" and \"### U_DRV \u2014 package `SOP65P640X120-29N` (library `DRV8313PWPR`, HTSSOP-28 with thermal pad)\". Agent also confirmed via the --sync run: \"replaced 2 package(s): HRO_TYPE-C-31-M-12, SOP65P640X120-29N\".",
+      "verified_by": "grader-model"
+    },
+    {
+      "text": "Explains the inconsistency is in package geometry (solder-mask / slot) between sch and brd.",
+      "passed": true,
+      "evidence": "Report for J_USB: \"Plated-slot milling (layer 46) | 24 wires forming 4 closed stadium outlines, width 0 | 4 single wires through the pad centres, width 0.6 mm = drill\" and \"Solder-mask (layer 29) openings over the 12 SMD signal pads | 0.40 mm wide | 0.25 mm wide\"; also S1\u2013S4 pad shape change (round 0.9 \u2192 long 1.0 R90) plus 32 helper pads. For U_DRV: \"the difference is purely in the 31 package polygons ... 28 per-pin stop-mask polygons (layer 29) | 8-vertex rounded rectangles with curve=-90, 1.60 \u00d7 0.55 mm | 4-vertex plain rectangles 1.60 \u00d7 0.40 mm, pour=solid\" and thermal-pad copper/stop/cream polygons with arcs flattened. These were derived from the agent's own element-by-element diffs (pkgdiff2/pkgdiff3 output in transcript), not just asserted.",
+      "verified_by": "grader-model"
+    },
+    {
+      "text": "Produces a corrected schematic that is consistent with the board (check_consistency PASS on the output).",
+      "passed": true,
+      "evidence": "check_consistency.py outputs/design.sch inputs/design.brd -> PASS",
+      "verified_by": "script"
+    },
+    {
+      "text": "Corrected .sch remains valid EAGLE XML with DOCTYPE intact and parses.",
+      "passed": true,
+      "evidence": "outputs/design.sch: parses and keeps <!DOCTYPE eagle SYSTEM \"eagle.dtd\">",
+      "verified_by": "script"
+    },
+    {
+      "text": "Does not alter the netlist \u2014 parts (71) and nets (57) still match the board.",
+      "passed": true,
+      "evidence": "check_consistency.py: PARTS sch=71 brd=71, NETS sch=57 brd=57",
+      "verified_by": "script"
+    }
+  ],
+  "summary": {
+    "passed": 5,
+    "failed": 0,
+    "total": 5,
+    "pass_rate": 1.0
+  },
+  "execution_metrics": {
+    "total_tool_calls": 12,
+    "errors_encountered": 3,
+    "output_chars": 32024,
+    "status": "ok"
+  },
+  "timing": {
+    "executor_duration_seconds": 182.6,
+    "grader_duration_seconds": 23.4,
+    "total_duration_seconds": 182.6
+  },
+  "grader": {
+    "models": [
+      "claude-fable-5-1"
+    ],
+    "cost_usd": 0.61468225,
+    "notes": [
+      "The first assertion is largely satisfied by the skill's check_consistency.py, which names both packages directly; the agent's contribution was mapping package names back to the part refdes (J_USB/U_DRV) via the deviceset/element lookup, which it did do.",
+      "The report's root-cause claim that the schematic's SHIELD connect already listed all 36 pad names (S1B\u2026S4I) while the embedded package defined only S1\u2013S4 was verified in the transcript (grep found the connect line 2163 in the input .sch and zero <pad name=\"S1B\"> definitions). An earlier grep for pad=\"S1B\" returned 0 because the pad list is space-separated in one attribute; the agent correctly re-checked rather than drawing a wrong conclusion.",
+      "outputs/consistency_report.json reflects the post-sync state (pass: true), since it was written by the same --sync invocation; the pre-fix FAIL verdict is only in the transcript, not in an output file."
+    ]
+  }
+}

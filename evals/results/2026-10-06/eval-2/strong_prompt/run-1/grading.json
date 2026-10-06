@@ -1,0 +1,65 @@
+{
+  "eval_id": 2,
+  "eval_name": "placement-min-area",
+  "configuration": "strong_prompt",
+  "expectations": [
+    {
+      "text": "Places all 8 parts (U1, U2, C1-C4, L1, J1, J2).",
+      "passed": true,
+      "evidence": "placement.csv has rows for U1, J1, J2, U2, L1, C1, C2, C3, C4 with explicit centers, sizes and rotations; the SVG parser also found labels ['C1','C2','C3','C4','J1','J2','L1','U1','U2']. (Note: the listed refs actually total 9 parts, all present.)",
+      "verified_by": "grader-model"
+    },
+    {
+      "text": "No two parts overlap.",
+      "passed": true,
+      "evidence": "From the CSV, bounding boxes are: U1 x12-30 y0-25.5; J1 x1.5-10.5 y26-30; J2 x14.5-24.5 y27.5-30; U2 x5.5-8.5 y17-20; L1 x4.5-9.5 y9.5-14.5; C1 x8.5-9.5 y8.25-8.75; C2 x10.25-11.25 y6.25-6.75; C3 x3.75-4.25 y18-19; C4 x10.25-11.25 y7.75-8.25. Every pair is disjoint (closest: J2 top 27.5 vs U1 bottom 25.5; C1 bottom 8.75 vs L1 top 9.5; C2/C4 same x column with 1.0 mm y gap).",
+      "verified_by": "grader-model"
+    },
+    {
+      "text": "All parts fit within the 30 x 30 mm board.",
+      "passed": true,
+      "evidence": "Min x is 1.5 (J1), max x is 30.0 (U1 right edge); min y is 0.0 (U1 top), max y is 30.0 (J1, J2 bottom). All extents lie in [0,30]; U1 is flush to the top and right edges with zero margin but does not exceed the outline.",
+      "verified_by": "grader-model"
+    },
+    {
+      "text": "J1 and J2 are placed on a board edge (constraint honored).",
+      "passed": true,
+      "evidence": "J1 center (6, 28) with h=4 spans y 26-30, and J2 center (19.5, 28.75) with h=2.5 spans y 27.5-30; both bottoms coincide exactly with the y=30 board edge. Report states 'J1 and J2 on the bottom edge'.",
+      "verified_by": "grader-model"
+    },
+    {
+      "text": "Produces a valid SVG preview (parses, contains the board outline + parts).",
+      "passed": true,
+      "evidence": "outputs/placement_preview.svg parses: 100 shapes, part labels found: ['C1', 'C2', 'C3', 'C4', 'J1', 'J2', 'L1', 'U1', 'U2']",
+      "verified_by": "script"
+    }
+  ],
+  "summary": {
+    "passed": 5,
+    "failed": 0,
+    "total": 5,
+    "pass_rate": 1.0
+  },
+  "execution_metrics": {
+    "total_tool_calls": 7,
+    "errors_encountered": 0,
+    "output_chars": 14850,
+    "status": "ok"
+  },
+  "timing": {
+    "executor_duration_seconds": 248.3,
+    "grader_duration_seconds": 34.3,
+    "total_duration_seconds": 248.3
+  },
+  "grader": {
+    "models": [
+      "claude-fable-5-1"
+    ],
+    "cost_usd": 0.49945225,
+    "notes": [
+      "The assertion text says 8 parts but the enumerated list (U1, U2, C1-C4, L1, J1, J2) is 9 parts; all 9 are placed.",
+      "U1 is placed flush to both the top edge (y=0) and right edge (x=30) with zero clearance, and the agent suggests letting it overhang the top edge by ~1 mm. It technically fits, but a real fab would want edge clearance; the antenna keepout hatch drawn over the module is also noted only in the SVG.",
+      "C4 has no net besides GND in the prompt; the agent assigned it to an assumed EN RC role and placed it accordingly, which is disclosed in the summary."
+    ]
+  }
+}

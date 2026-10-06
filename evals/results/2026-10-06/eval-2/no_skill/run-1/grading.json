@@ -1,0 +1,65 @@
+{
+  "eval_id": 2,
+  "eval_name": "placement-min-area",
+  "configuration": "no_skill",
+  "expectations": [
+    {
+      "text": "Places all 8 parts (U1, U2, C1-C4, L1, J1, J2).",
+      "passed": true,
+      "evidence": "outputs/placement.csv has one row per refdes with centre, rotation and extents: U1 (20.0,17.25), J1 (5.5,2.0), J2 (21.0,1.25), U2 (4.0,9.5), L1 (4.5,15.0), C3 (3.0,6.3), C4 (7.6,9.5), C1 (7.5,19.0), C2 (9.5,19.0). All nine refdes (U1, U2, C1, C2, C3, C4, L1, J1, J2) are placed; the render script's `parts` list and the final summary table match the CSV.",
+      "verified_by": "grader-model"
+    },
+    {
+      "text": "No two parts overlap.",
+      "passed": true,
+      "evidence": "Checked every pair from the CSV extents: U1 X 11..29 / Y 4.5..30; J1 X 1..10 / Y 0..4; J2 X 16..26 / Y 0..2.5 (Y max 2.5 < U1 Y min 4.5); U2 X 2.5..5.5 / Y 8..11; L1 X 2..7 / Y 12.5..17.5 (Y min 12.5 > U2 Y max 11); C3 X 2.5..3.5 / Y 6.05..6.55 (between J1 and U2); C4 X 7.10..8.10 (right of U2, left of U1); C1 X 7..8 / Y 18.75..19.25 and C2 X 9..10 / Y 18.75..19.25 (above L1, left of U1). No axis-aligned rectangles intersect.",
+      "verified_by": "grader-model"
+    },
+    {
+      "text": "All parts fit within the 30 x 30 mm board.",
+      "passed": true,
+      "evidence": "All CSV extents lie within X 0..30 and Y 0..30. Tightest cases: U1 Y 4.50..30.00 (flush with top edge, not beyond), J1 and J2 Y min 0.00 (flush with bottom edge), max X is U1 at 29.00, min X is J1 at 1.00.",
+      "verified_by": "grader-model"
+    },
+    {
+      "text": "J1 and J2 are placed on a board edge (constraint honored).",
+      "passed": true,
+      "evidence": "CSV: J1 extent Y 0.00..4.00, note \"mouth flush with bottom edge\"; J2 extent Y 0.00..2.50, note \"bottom edge\". Both touch the Y=0 board edge. The md table repeats \"Bottom edge\" for both.",
+      "verified_by": "grader-model"
+    },
+    {
+      "text": "Produces a valid SVG preview (parses, contains the board outline + parts).",
+      "passed": true,
+      "evidence": "outputs/placement.svg parses: 150 shapes, part labels found: ['C1', 'C2', 'C3', 'C4', 'L1']",
+      "verified_by": "script"
+    }
+  ],
+  "summary": {
+    "passed": 5,
+    "failed": 0,
+    "total": 5,
+    "pass_rate": 1.0
+  },
+  "execution_metrics": {
+    "total_tool_calls": 9,
+    "errors_encountered": 2,
+    "output_chars": 14432,
+    "status": "ok"
+  },
+  "timing": {
+    "executor_duration_seconds": 273.9,
+    "grader_duration_seconds": 32.0,
+    "total_duration_seconds": 273.9
+  },
+  "grader": {
+    "models": [
+      "claude-fable-5-1"
+    ],
+    "cost_usd": 0.5266522499999999,
+    "notes": [
+      "The assertion says \"8 parts\" but the enumerated list (U1, U2, C1-C4, L1, J1, J2) is actually 9 refdes; the agent placed all 9, so the assertion is satisfied under either count.",
+      "placement.csv and placement.md disagree on the extents of the 90\u00b0-rotated 0402 caps (CSV lists them 1.0 mm in X by 0.5 mm in Y, e.g. C3 X 2.50..3.50 / Y 6.05..6.55; the md lists 0.5 x 1.0, e.g. C3 X 2.75..3.25 / Y 5.8..6.8). Neither version produces an overlap or out-of-board condition, so it does not affect the graded assertions, but it is an internal inconsistency.",
+      "The antenna keepout stated in placement.md (\"full board width, Y 24..30. No copper, no parts on any layer\") is contradicted by U1 itself occupying Y 24..30; the intent is clearly 'no other parts', but the wording is wrong as written."
+    ]
+  }
+}
