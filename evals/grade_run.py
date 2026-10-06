@@ -181,12 +181,15 @@ def check_eval2(run_dir, meta):
             continue
         sizes = {x["name"]: (x["w"], x["h"]) for x in spec["parts"]}
         W, H = spec["board"]["w"], spec["board"]["h"]
+        # x, y are bbox centres in board coordinates; rot is "R90"-style or a number; margin is the spec's edge clearance
+        margin = float(spec["board"].get("margin", 0.8))
         rects = {}
         for x in pl:
             w, h = sizes.get(x["name"], (None, None))
             if w is None:
                 continue
-            if x.get("rot", 0) in (90, 270):
+            rot = int(str(x.get("rot", 0)).lstrip("R") or 0) % 360
+            if rot in (90, 270):
                 w, h = h, w
             rects[x["name"]] = (x["x"] - w / 2, x["y"] - h / 2, x["x"] + w / 2, x["y"] + h / 2)
         names = set(rects)
@@ -197,11 +200,12 @@ def check_eval2(run_dir, meta):
             rects[a][3] <= rects[b][1] + 1e-6 or rects[b][3] <= rects[a][1] + 1e-6)]
         res[A[1]] = (not ov, f"rectangle overlap test on {len(rects)} parts: {ov or 'none'}")
         inside = all(r[0] >= -1e-6 and r[1] >= -1e-6 and r[2] <= W + 1e-6 and r[3] <= H + 1e-6 for r in rects.values())
-        res[A[2]] = (inside, f"all centers+sizes within {W} x {H} mm: {inside}")
+        res[A[2]] = (inside, f"all rotated bboxes within {W} x {H} mm: {inside}; bboxes: " + "; ".join(f"{n}=({r[0]:.1f},{r[1]:.1f})-({r[2]:.1f},{r[3]:.1f})" for n, r in sorted(rects.items())))
+        tol = margin + 0.5
         def on_edge(r):
-            return abs(r[0]) < 0.5 or abs(r[1]) < 0.5 or abs(W - r[2]) < 0.5 or abs(H - r[3]) < 0.5
+            return abs(r[0]) <= tol or abs(r[1]) <= tol or abs(W - r[2]) <= tol or abs(H - r[3]) <= tol
         je = {n: on_edge(rects[n]) for n in ("J1", "J2") if n in rects}
-        res[A[3]] = (bool(je) and all(je.values()), f"edge test (within 0.5 mm of an outline edge): {je}")
+        res[A[3]] = (bool(je) and all(je.values()), f"edge test (bbox within {tol:.1f} mm of an outline edge): {je}")
         break
     return res
 
